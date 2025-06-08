@@ -9,7 +9,7 @@
 
 ---
 
-## 📅 Project Status: **Phase 1 Complete - Hello World Graphics** ✅
+## 📅 Project Status: **🚀 Phase 3: 3D Raycasting Engine** 🔥
 
 ---
 
@@ -42,36 +42,63 @@
 - [x] ~~Mandatory protocol for future AI assistants~~
 - [x] ~~Session templates and checklists~~
 
+### Phase 2: Player Movement & Testing System ✅
+- [x] ~~**Add Player Entity**~~
+  - [x] ~~Player position (x, y coordinates)~~
+  - [x] ~~Player rotation/direction~~
+  - [x] ~~Draw player as yellow circle on screen~~
+
+- [x] ~~**Implement WASD Movement**~~
+  - [x] ~~W/S: Move forward/backward in facing direction~~
+  - [x] ~~A/D: Turn left/right (rotate player)~~
+  - [x] ~~Movement speed control~~
+  - [x] ~~Smooth movement with delta time~~
+
+- [x] ~~**Basic 2D Map System**~~
+  - [x] ~~Grid-based map (10x10 for testing)~~
+  - [x] ~~Wall/empty space definition~~
+  - [x] ~~Basic collision detection~~
+
+- [x] ~~**2D Top-Down View**~~
+  - [x] ~~Render map as rectangles (white walls, gray empty)~~
+  - [x] ~~Show player position on the map~~
+  - [x] ~~Visual debugging with player direction indicator~~
+
+- [x] ~~**Cross-Platform Testing System** 🎯~~
+  - [x] ~~Integrated testing built into executable~~
+  - [x] ~~Command-line interface with clap~~
+  - [x] ~~Graphics, movement, collision, and performance tests~~
+  - [x] ~~Cross-platform compatibility (Windows/macOS/Linux)~~
+  - [x] ~~No external scripts dependency~~
+  - [x] ~~Automated test reporting with exit codes~~
+
 ---
 
 ## 🚀 **NEXT IMMEDIATE TASKS** (Priority Order)
 
-### Phase 2: Player Movement & Basic Game World
-1. **[ ] Add Player Entity**
-   - Add player position (x, y coordinates)
-   - Add player rotation/direction
-   - Draw player as a colored circle/dot on screen
+### Phase 3: 3D Raycasting Engine - 🔥 ACTIVE 🔥
+1. **[ ] Implement Basic Raycasting Algorithm**
+   - Cast rays from player position across field of view  
+   - DDA (Digital Differential Analyzer) for efficient ray-grid traversal
+   - Calculate precise distances to walls
+   - Determine wall hit coordinates and orientation
 
-2. **[ ] Implement WASD Movement**
-   - W/S: Move forward/backward in facing direction
-   - A/D: Turn left/right (rotate player)
-   - Movement speed control
-   - Smooth movement with delta time
+2. **[ ] 3D Wall Rendering**
+   - Render vertical wall strips based on distance
+   - Proper perspective projection (distance → wall height)
+   - Field of view configuration (60-90 degrees)
+   - Screen space rendering with performance optimization
 
-3. **[ ] Mouse Look (Optional)**
-   - Mouse movement controls player rotation
-   - Lock cursor to window center
-   - Sensitivity settings
+3. **[ ] Basic Floor & Ceiling**
+   - Solid color floor rendering (gray/brown)
+   - Solid color ceiling rendering (dark blue/black)
+   - Proper vertical field division
 
-4. **[ ] Basic 2D Map System**
-   - Create simple grid-based map (array of walls/empty)
-   - Define map dimensions (e.g., 20x20 grid)
-   - Basic collision detection (can't walk through walls)
-
-5. **[ ] 2D Top-Down View**
-   - Render map as rectangles (walls = white, empty = black)
-   - Show player position on the map
-   - Mini-map style view for debugging
+4. **[ ] View Controls & Camera**
+   - Maintain existing WASD movement
+   - Add mouse look (left/right rotation)
+   - Smooth camera movement
+   - Configurable turn speed
 
 ---
 
@@ -112,23 +139,98 @@
 - **Language**: Rust 1.87.0
 - **Graphics**: macroquad 0.4
 - **Build**: Cargo (standard Rust toolchain)
-- **Target**: Windows x64 (expandable to other platforms)
+- **Target**: Cross-platform (Windows, macOS, Linux)
 
-### Project Structure
+### Project Structure Rules 📋
+**MANDATORY - All AI assistants must follow these rules:**
+
+1. **Keep Root Clean**: Only essential files in root directory
+2. **Cross-Platform First**: No platform-specific scripts in root
+3. **Organized Folders**: Use dedicated folders for different purposes
+4. **Universal Tools**: Prefer Cargo features over external scripts
+
+### Code Organization Rules 📐
+**SINGLE RESPONSIBILITY PRINCIPLE - Each file should have ONE clear purpose:**
+
+1. **`src/main.rs`**: ONLY entry point and basic argument parsing
+2. **`src/game/`**: Game logic modules
+   - `mod.rs` - Game module exports
+   - `player.rs` - Player entity and movement
+   - `map.rs` - Map system and collision detection
+   - `state.rs` - Game state management
+3. **`src/testing/`**: Testing framework modules
+   - `mod.rs` - Testing module exports  
+   - `runner.rs` - Test execution framework
+   - `tests.rs` - Individual test implementations
+4. **`src/cli.rs`**: Command line interface definitions
+5. **`src/graphics/`**: Rendering and visual modules (future)
+6. **`src/physics/`**: Physics and collision systems (future)
+
+### File Size Limits 📏
+- **main.rs**: Maximum 100 lines
+- **Any module**: Maximum 300 lines
+- **If exceeding limits**: Split into sub-modules immediately
+
+### Module Dependencies 🔗
+- **Clear hierarchy**: Higher-level modules import lower-level ones
+- **No circular dependencies**: Use dependency injection if needed
+- **Public interfaces**: Each module exports only what's needed externally
+
+### Proper Project Structure
 ```
 📁 Root/
-├── 📁 src/
-│   └── main.rs              # Main game code
-├── 📁 build/
-│   └── 📁 win64/           # Distribution folder
-│       ├── wolfenstein-ai.exe
-│       └── README.txt
-├── 📁 cpp_backup/          # Old C++ attempt
-├── Cargo.toml              # Rust dependencies
-├── build_release.bat       # Build automation
-├── .gitignore             # Git ignore rules
-├── TODO.md                # This file!
-└── AI.log                 # Complete conversation history
+├── 📁 src/                 # Source code
+│   ├── main.rs            # Main game entry point
+│   ├── player.rs          # Player logic (future)
+│   ├── map.rs             # Map system (future)
+│   └── raycast.rs         # Raycasting engine (future)
+├── 📁 assets/             # Game assets (textures, sounds)
+│   ├── textures/
+│   └── sounds/
+├── 📁 scripts/            # Build and utility scripts
+│   ├── build.sh           # Unix build script
+│   ├── build.bat          # Windows build script
+│   ├── test.sh            # Unix testing
+│   └── test.bat           # Windows testing
+├── 📁 build/              # Distribution builds
+│   ├── 📁 win64/         # Windows x64 builds
+│   ├── 📁 macos/         # macOS builds
+│   └── 📁 linux/         # Linux builds
+├── 📁 tests/              # Unit and integration tests
+│   └── integration.rs
+├── 📁 docs/               # Documentation
+│   └── architecture.md
+├── Cargo.toml             # Rust dependencies & metadata
+├── .gitignore            # Git ignore rules
+├── TODO.md               # This roadmap
+├── AI.log                # AI conversation history
+└── README.md             # Project overview
+```
+
+### Testing Strategy 🧪
+**Cross-Platform Testing Rules:**
+
+1. **Use Cargo Tests**: Primary testing through `cargo test`
+2. **Integration Tests**: In `tests/` folder
+3. **Platform Scripts**: Only in `scripts/` folder
+4. **Automated CI**: GitHub Actions for all platforms
+5. **Manual Testing**: Clear procedures in docs
+
+### Testing Commands
+```bash
+# Run all tests
+cargo test
+
+# Run with verbose output
+cargo test -- --nocapture
+
+# Run specific test
+cargo test test_movement
+
+# Build all platforms (future)
+cargo build --target x86_64-pc-windows-gnu
+cargo build --target x86_64-apple-darwin
+cargo build --target x86_64-unknown-linux-gnu
 ```
 
 ### Development Commands

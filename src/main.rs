@@ -1,67 +1,61 @@
-use macroquad::prelude::*;
+//! Wolfenstein by AI - Main Entry Point
+//! 
+//! A Wolfenstein-style game created with AI assistance using Rust and macroquad.
+//! Features integrated testing system and modular architecture.
 
-#[macroquad::main("Wolfenstein by AI")]
-async fn main() {
-    println!("Starting Wolfenstein by AI...");
+use macroquad::prelude::*;
+use clap::Parser;
+
+mod cli;
+mod game;
+mod testing;
+
+use cli::{Cli, Commands};
+use game::GameState;
+
+/// Run the game in interactive mode
+async fn run_game() {
+    println!("Starting Wolfenstein by AI - Interactive Mode");
+    println!("Controls: WASD to move/turn, ESC to exit");
+    
+    let mut game_state = GameState::new();
+    let mut frame_counter = 0;
     
     loop {
-        // Clear the screen with a dark color
-        clear_background(BLACK);
+        let dt = get_frame_time();
         
-        // Draw title text
-        let title = "WOLFENSTEIN BY AI";
-        let title_size = 60.0;
-        let title_width = measure_text(title, None, title_size as u16, 1.0).width;
-        draw_text(
-            title,
-            (screen_width() - title_width) * 0.5,
-            screen_height() * 0.3,
-            title_size,
-            GREEN,
-        );
+        game_state.update(dt);
+        game_state.draw();
         
-        // Draw subtitle
-        let subtitle = "Hello World from Rust!";
-        let subtitle_size = 40.0;
-        let subtitle_width = measure_text(subtitle, None, subtitle_size as u16, 1.0).width;
-        draw_text(
-            subtitle,
-            (screen_width() - subtitle_width) * 0.5,
-            screen_height() * 0.5,
-            subtitle_size,
-            WHITE,
-        );
+        frame_counter += 1;
         
-        // Draw instructions
-        let instructions = "Press ESC to exit";
-        let inst_size = 20.0;
-        let inst_width = measure_text(instructions, None, inst_size as u16, 1.0).width;
-        draw_text(
-            instructions,
-            (screen_width() - inst_width) * 0.5,
-            screen_height() * 0.7,
-            inst_size,
-            GRAY,
-        );
+        // Debug output every 60 frames (about 1 second)
+        if frame_counter % 60 == 0 {
+            println!("Game running... Frame: {}, FPS: {:.0}", frame_counter, get_fps());
+        }
         
-        // Draw a simple rectangle for visual effect
-        draw_rectangle_lines(
-            50.0, 
-            50.0, 
-            screen_width() - 100.0, 
-            screen_height() - 100.0, 
-            3.0, 
-            GREEN
-        );
-        
-        // Exit on ESC
         if is_key_pressed(KeyCode::Escape) {
+            println!("ESC pressed - exiting game");
             break;
         }
         
-        // This tells macroquad to wait for the next frame
         next_frame().await;
     }
     
     println!("Wolfenstein by AI shutting down...");
+}
+
+/// Main entry point
+#[macroquad::main("Wolfenstein by AI")]
+async fn main() {
+    let cli = Cli::parse();
+    
+    match cli.command {
+        Some(Commands::Test { test_type, timeout, verbose }) => {
+            testing::run_tests(&test_type, timeout, verbose).await;
+        },
+        None => {
+            run_game().await;
+        }
+    }
 }

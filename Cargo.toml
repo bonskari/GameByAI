@@ -7,3 +7,29 @@ authors = ["Your Name <your.email@example.com>"]
 
 [dependencies]
 macroquad = "0.4"
+clap = { version = "4.0", features = ["derive"] }
+futures = "0.3"
+
+[dev-dependencies]
+# Testing dependencies (only used during development)
+
+[features]
+default = []
+# Feature for automated testing without graphics
+test-mode = []
+
+# Build profiles for different targets
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+[profile.dev]
+opt-level = 0
+debug = true
+
+# Cross-platform build targets (commented for future use)
+# [target.x86_64-pc-windows-gnu]
+# [target.x86_64-apple-darwin]  
+# [target.x86_64-unknown-linux-gnu]
