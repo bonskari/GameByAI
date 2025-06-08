@@ -79,3 +79,7 @@ cmake_install.cmake
 /target/
 **/*.rs.bk
 Cargo.lock
+
+# Build distribution (keep structure, ignore binaries)
+build/**/wolfenstein-ai.exe
+build/**/*.exe
