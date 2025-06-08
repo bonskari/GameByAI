@@ -49,4 +49,28 @@ coverage/
 
 # Temporary files
 temp/
-tmp/ 
+tmp/
+
+# C++ specific
+*.o
+*.obj
+*.exe
+*.out
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+
+# Compiled executables
+wolfenstein_ai
+wolfenstein_ai.exe
+
+# Debug files
+*.pdb
+*.ilk
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake 
