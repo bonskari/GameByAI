@@ -1,0 +1,9 @@
+[package]
+name = "wolfenstein-ai"
+version = "0.1.0"
+edition = "2021"
+description = "A Wolfenstein-style game created with AI assistance using Rust"
+authors = ["Your Name <your.email@example.com>"]
+
+[dependencies]
+macroquad = "0.4"

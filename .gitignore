@@ -73,4 +73,9 @@ wolfenstein_ai.exe
 # CMake
 CMakeFiles/
 CMakeCache.txt
-cmake_install.cmake 
+cmake_install.cmake
+
+# Rust specific
+/target/
+**/*.rs.bk
+Cargo.lock

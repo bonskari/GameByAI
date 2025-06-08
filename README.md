@@ -1,25 +1,70 @@
-# GameByAI
+# GameByAI - Wolfenstein by AI
 
-A Wolfenstein-style game created with AI assistance.
+A Wolfenstein-style game created with AI assistance using **Rust** and **macroquad**.
 
-## Getting Started
+## 🦀 About
 
-This project aims to recreate the classic Wolfenstein 3D gameplay experience using modern AI development techniques.
+This project recreates the classic Wolfenstein 3D gameplay experience using modern Rust development with the macroquad game framework. The development process is AI-assisted, combining learning with practical game development.
 
-## Game Features
+## 🚀 Getting Started
 
-- Classic first-person shooter mechanics
-- Retro-style graphics inspired by Wolfenstein 3D
-- AI-assisted development process
+### Prerequisites
+- Rust (installed via rustup)
+- Cargo (comes with Rust)
 
-## Technologies Used
+### Building and Running
+```bash
+# Clone the repository
+git clone https://github.com/bonskari/GameByAI.git
+cd GameByAI
 
-[List the technologies, frameworks, and tools you're using]
+# Build the project
+cargo build
 
-## Contributing
+# Run the game
+cargo run
+```
 
-[Add contribution guidelines if applicable]
+## 🎮 Game Features
 
-## License
+- **Classic first-person shooter mechanics** (planned)
+- **Retro-style graphics** inspired by Wolfenstein 3D
+- **Modern Rust implementation** with memory safety
+- **Cross-platform support** via macroquad
+- **AI-assisted development** process
+
+## 🛠️ Technologies Used
+
+- **Rust** - Systems programming language
+- **macroquad** - Simple and easy to use 2D/3D game framework
+- **Cargo** - Rust package manager and build system
+
+## 📁 Project Structure
+
+```
+├── src/
+│   └── main.rs          # Main game code
+├── cpp_backup/          # Previous C++ implementation
+├── Cargo.toml          # Rust dependencies and metadata
+├── .gitignore          # Git ignore patterns
+└── README.md           # This file
+```
+
+## 🎯 Development Status
+
+- ✅ Basic project setup
+- ✅ Rust toolchain configuration  
+- ✅ macroquad integration
+- ✅ Basic game window with graphics
+- 🔄 Game engine development (in progress)
+- ⏳ Raycasting renderer (planned)
+- ⏳ Player movement and controls (planned)
+- ⏳ Level loading and rendering (planned)
+
+## 🤝 Contributing
+
+This is a learning project focused on AI-assisted game development. Feel free to explore the code and suggest improvements!
+
+## 📝 License
 
 [Add license information] 
