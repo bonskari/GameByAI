@@ -24,4 +24,13 @@ pub enum Commands {
         #[arg(short, long)]
         verbose: bool,
     },
+    /// Run automated visual tests with bot movement
+    VisualTest {
+        /// Test duration in seconds
+        #[arg(short, long, default_value = "15")]
+        duration: u64,
+        /// Disable auto-close after test completion
+        #[arg(long)]
+        no_auto_close: bool,
+    },
 } 

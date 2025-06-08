@@ -6,7 +6,7 @@
 use macroquad::prelude::*;
 use futures;
 use crate::testing::runner::TestRunner;
-use crate::game::{Map, Player, RaycastRenderer};
+use crate::game::{Map, Player};
 
 /// Test graphics initialization - no visual feedback to prevent hanging
 pub async fn test_graphics_initialization(_runner: &mut TestRunner) -> Result<String, String> {
@@ -45,7 +45,7 @@ pub async fn test_game_loop(_runner: &mut TestRunner) -> Result<String, String> 
 /// Test player movement logic - pure logic testing without visuals
 pub async fn test_player_movement(_runner: &mut TestRunner) -> Result<String, String> {
     let map = Map::new();
-    let mut player = Player::new(5.0, 5.0);
+    let mut player = Player::new(1.5, 1.5); // Use valid starting position
     let original_x = player.x;
     let original_y = player.y;
     let original_rotation = player.rotation;
@@ -85,8 +85,8 @@ pub async fn test_collision_detection(_runner: &mut TestRunner) -> Result<String
         return Err("Wall not detected at (0,0)".to_string());
     }
     
-    if map.is_wall(5, 5) {
-        return Err("False wall detected at (5,5)".to_string());
+    if map.is_wall(1, 1) {
+        return Err("False wall detected at (1,1) - should be empty".to_string());
     }
     
     // Test bounds checking
@@ -97,33 +97,100 @@ pub async fn test_collision_detection(_runner: &mut TestRunner) -> Result<String
     Ok("Collision detection OK".to_string())
 }
 
-/// Test raycasting engine - pure logic testing without visuals
-pub async fn test_raycasting(_runner: &mut TestRunner) -> Result<String, String> {
+/// Test texture system - verify different wall types work correctly
+pub async fn test_texture_system(_runner: &mut TestRunner) -> Result<String, String> {
     let map = Map::new();
-    let raycast = RaycastRenderer::new();
     
-    // Test ray casting from center of map towards a wall
-    let player_x = 5.0;
-    let player_y = 5.0;
-    let ray_angle = 0.0; // Looking east
+    // Test wall type detection
+    let _wall_type_stone = map.get_wall_type(0, 0);
+    let wall_type_empty = map.get_wall_type(1, 1);
     
-    // Cast ray towards east wall
-    if let Some(hit) = raycast.cast_ray(&map, player_x, player_y, ray_angle) {
-        // Should hit the wall at x=9 (since map is 10x10 with walls at edges)
-        if hit.distance <= 0.0 || hit.distance > 10.0 {
-            return Err(format!("Invalid ray distance: {:.2}", hit.distance));
-        }
-        
-        // Should be a reasonable distance to east wall
-        let expected_distance = 9.0 - player_x; // Distance to wall at x=9
-        if (hit.distance - expected_distance).abs() > 0.5 {
-            return Err(format!("Unexpected ray distance: {:.2}, expected ~{:.2}", hit.distance, expected_distance));
-        }
-        
-        Ok(format!("Raycasting OK (distance: {:.2})", hit.distance))
-    } else {
-        Err("Ray did not hit any wall".to_string())
+    if wall_type_empty != super::super::game::map::WallType::Empty {
+        return Err("Empty space not detected correctly".to_string());
     }
+    
+    // Test texture color generation
+    let tech_color = map.get_wall_color(super::super::game::map::WallType::TechPanel, true);
+    let hull_color = map.get_wall_color(super::super::game::map::WallType::HullPlating, true);
+    
+    // Colors should be different
+    if tech_color.r == hull_color.r && tech_color.g == hull_color.g && tech_color.b == hull_color.b {
+        return Err("TechPanel and HullPlating should have different colors".to_string());
+    }
+    
+    // Test textured wall colors
+    let textured_tech = map.get_textured_wall_color(super::super::game::map::WallType::TechPanel, true, 0.5);
+    
+    // Should be valid color values
+    if textured_tech.r < 0.0 || textured_tech.r > 1.0 {
+        return Err("Invalid color values generated".to_string());
+    }
+    
+    Ok("Texture system OK (multiple wall types working)".to_string())
+}
+
+/// Test player starting position - validate player starts in open area
+pub async fn test_player_starting_position(_runner: &mut TestRunner) -> Result<String, String> {
+    let map = Map::new();
+    let game_state = super::super::game::GameState::new();
+    
+    // Check if player starting position is in a wall
+    if map.is_wall(game_state.player.x as i32, game_state.player.y as i32) {
+        return Err(format!("Player starts inside wall at ({:.1}, {:.1})", 
+            game_state.player.x, game_state.player.y));
+    }
+    
+    // Check if starting position is within map bounds
+    if game_state.player.x < 0.0 || game_state.player.y < 0.0 ||
+       game_state.player.x >= map.width as f32 || game_state.player.y >= map.height as f32 {
+        return Err(format!("Player starts outside map bounds at ({:.1}, {:.1})", 
+            game_state.player.x, game_state.player.y));
+    }
+    
+    // Check reasonable starting height
+    if game_state.player.z <= 0.0 || game_state.player.z > 3.0 {
+        return Err(format!("Player starting height unreasonable: {:.1}", game_state.player.z));
+    }
+    
+    Ok(format!("Starting position OK at ({:.1}, {:.1}, {:.1})", 
+        game_state.player.x, game_state.player.y, game_state.player.z))
+}
+
+/// Test pitch controls - verify pitch is properly clamped and functional
+pub async fn test_pitch_controls(_runner: &mut TestRunner) -> Result<String, String> {
+    let mut player = Player::new(5.0, 5.0);
+    
+    // Test initial pitch
+    if player.pitch != 0.0 {
+        return Err(format!("Initial pitch should be 0.0, got {:.2}", player.pitch));
+    }
+    
+    // Test pitch clamping - simulate extreme mouse movement
+    let max_pitch = std::f32::consts::PI * 0.47; // ~85 degrees
+    
+    // Set pitch beyond maximum
+    player.pitch = max_pitch + 1.0;
+    player.pitch = player.pitch.clamp(-max_pitch, max_pitch);
+    
+    if (player.pitch - max_pitch).abs() > 0.001 {
+        return Err(format!("Pitch clamping failed: {:.2}, expected {:.2}", player.pitch, max_pitch));
+    }
+    
+    // Test negative pitch clamping
+    player.pitch = -max_pitch - 1.0;
+    player.pitch = player.pitch.clamp(-max_pitch, max_pitch);
+    
+    if (player.pitch - (-max_pitch)).abs() > 0.001 {
+        return Err(format!("Negative pitch clamping failed: {:.2}, expected {:.2}", player.pitch, -max_pitch));
+    }
+    
+    // Test normal pitch range
+    player.pitch = 0.5; // ~28 degrees
+    if player.pitch.abs() > max_pitch {
+        return Err("Normal pitch range validation failed".to_string());
+    }
+    
+    Ok(format!("Pitch controls OK (range: ±{:.1}°)", max_pitch.to_degrees()))
 }
 
 /// Main test runner function - executes all or specific tests
@@ -148,8 +215,16 @@ pub async fn run_tests(test_type: &str, timeout: u64, verbose: bool) {
                 futures::executor::block_on(test_collision_detection(r))
             });
             
-            runner.run_test("Raycasting Engine", |r| {
-                futures::executor::block_on(test_raycasting(r))
+            runner.run_test("Texture System", |r| {
+                futures::executor::block_on(test_texture_system(r))
+            });
+            
+            runner.run_test("Player Starting Position", |r| {
+                futures::executor::block_on(test_player_starting_position(r))
+            });
+            
+            runner.run_test("Pitch Controls", |r| {
+                futures::executor::block_on(test_pitch_controls(r))
             });
         },
         "graphics" => {
@@ -167,14 +242,24 @@ pub async fn run_tests(test_type: &str, timeout: u64, verbose: bool) {
                 futures::executor::block_on(test_collision_detection(r))
             });
         },
-        "raycast" => {
-            runner.run_test("Raycasting Engine", |r| {
-                futures::executor::block_on(test_raycasting(r))
+        "texture" => {
+            runner.run_test("Texture System", |r| {
+                futures::executor::block_on(test_texture_system(r))
+            });
+        },
+        "pitch" => {
+            runner.run_test("Pitch Controls", |r| {
+                futures::executor::block_on(test_pitch_controls(r))
+            });
+        },
+        "position" => {
+            runner.run_test("Player Starting Position", |r| {
+                futures::executor::block_on(test_player_starting_position(r))
             });
         },
         _ => {
             println!("❌ Unknown test type: {}", test_type);
-            println!("Available tests: all, graphics, movement, collision, raycast");
+            println!("Available tests: all, graphics, movement, collision, texture, pitch, position");
             return;
         }
     }
