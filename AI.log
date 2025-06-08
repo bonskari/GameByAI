@@ -1,5 +1,51 @@
 # Wolfenstein by AI - Development Session Log
 
+## 🚨 **MANDATORY AI ASSISTANT PROTOCOL** 🚨
+**FOR ANY AI CONTINUING THIS PROJECT:**
+
+### 📋 **SESSION START CHECKLIST**:
+1. ✅ Read TODO.md for current status and next tasks
+2. ✅ Read this AI.log for full context and decision history  
+3. ✅ Set up Rust environment: `$env:PATH += ";$env:USERPROFILE\.cargo\bin"`
+4. ✅ **BEFORE DOING ANYTHING ELSE**: Add new session header to this AI.log
+
+### 📝 **DURING SESSION REQUIREMENTS**:
+- **DOCUMENT EVERY DECISION** in this log as it happens
+- **EXPLAIN WHY** choices were made, not just what was done
+- **UPDATE STATUS** in TODO.md when tasks are completed
+- **COMMIT LOGS** frequently with meaningful messages
+
+### 🎯 **SESSION END CHECKLIST**:
+1. ✅ Update TODO.md with completed tasks and next priorities
+2. ✅ Add session summary to this AI.log
+3. ✅ Commit and push all documentation updates
+4. ✅ **NO SESSION ENDS WITHOUT UPDATED LOGS**
+
+### 📖 **LOG TEMPLATE FOR NEW SESSIONS**:
+```
+## Session X - [Brief Description]
+**Date**: [Date]
+**Previous Status**: [Read from TODO.md]
+**Session Goals**: [What we plan to accomplish]
+
+### Progress Made:
+- [Document each major step]
+
+### Decisions Made:
+- [Why we chose specific approaches]
+
+### Problems Encountered:
+- [Issues and how they were solved]
+
+### Status at End:
+- [What's working, what's next]
+
+### Next Session Goals:
+- [Clear handoff to future AI/session]
+```
+
+---
+
 ## Session 1 - Initial Setup and Technology Decisions
 **Date**: Current Session  
 **Goal**: Set up development environment and create first working prototype
@@ -147,6 +193,10 @@ build/
 
 **Result**: This AI.log file for complete context preservation
 
+**CRITICAL USER INSIGHT**: "is there any way of creating some permanent rule for you to never forget to add to this log. I've tried this in the past but with lousy results."
+
+**SOLUTION**: Added mandatory protocol section at top of this log file to establish systematic approach
+
 ---
 
 ## Key Technical Decisions Made
@@ -184,6 +234,7 @@ build/
 3. **Build System Complexity**: Automated with simple batch script
 4. **Distribution Messiness**: Clean folder structure with only essentials
 5. **Development Continuity**: Comprehensive documentation system
+6. **Log Maintenance**: Created mandatory protocol system for future sessions
 
 ---
 
@@ -197,6 +248,7 @@ build/
 - ✅ Standalone executable distribution
 - ✅ Professional build system
 - ✅ Git version control with GitHub
+- ✅ Comprehensive documentation system with mandatory protocols
 
 **User Satisfaction**: High - "its very cool"
 
@@ -213,6 +265,7 @@ build/
 - Values clean, professional organization
 - Learning-focused approach
 - Appreciates detailed documentation
+- **CRITICAL**: Has had bad experiences with AI assistants not maintaining logs properly
 
 **Immediate Next Task**: Implement player entity with WASD movement controls
 
