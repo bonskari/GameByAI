@@ -319,3 +319,6 @@ cargo build --release
 - [Rust Book](https://doc.rust-lang.org/book/)
 - [Ray-Casting Tutorial](https://lodev.org/cgtutor/raycasting.html) (for Phase 3)
 - [GitHub Repo](https://github.com/bonskari/GameByAI) 
+
+# Development Rules
+- **Rule 1: Commit after every significant change.** After a successful build, a passing test, or a meaningful refactor, a git commit must be made. This prevents catastrophic loss of work and ensures a stable rollback point. 
