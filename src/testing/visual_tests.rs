@@ -353,19 +353,7 @@ impl VisualTestBot {
         draw_rectangle(bar_x, bar_y, bar_width * progress, bar_height, GREEN);
         draw_rectangle_lines(bar_x, bar_y, bar_width, bar_height, 1.0, WHITE);
         
-        // Draw minimap A* explored nodes and path
-        let tile_size = 20.0;
-        let offset_x = 300.0;
-        let offset_y = 50.0;
-        for &(x, y) in &self.explored_nodes {
-            draw_rectangle(offset_x + x as f32 * tile_size, offset_y + y as f32 * tile_size, tile_size, tile_size, Color::new(0.2, 0.4, 1.0, 0.3));
-        }
-        for &(x, y) in &self.path_nodes {
-            draw_rectangle(offset_x + x as f32 * tile_size, offset_y + y as f32 * tile_size, tile_size, tile_size, Color::new(1.0, 0.2, 0.2, 0.5));
-        }
-        // Draw player position
-        let player = &self.last_position;
-        draw_circle(offset_x + player.0 * tile_size, offset_y + player.1 * tile_size, tile_size * 0.3, YELLOW);
+        // Removed duplicate pathfinding visualization - now only shown on minimap
     }
 
     fn find_path_with_explored(start_x: i32, start_y: i32, end_x: i32, end_y: i32) -> (Vec<(i32, i32)>, Vec<(i32, i32)>) {
