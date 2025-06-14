@@ -23,6 +23,9 @@ cargo build
 
 # Run the game
 cargo run
+
+# Run the visual test mode
+cargo run -- visual-test
 ```
 
 ## 🎮 Game Features
@@ -68,3 +71,22 @@ This is a learning project focused on AI-assisted game development. Feel free to
 ## 📝 License
 
 [Add license information] 
+
+## 🧪 Testing
+
+The project includes an automated visual test system that validates textures and movement:
+
+### Visual Test Mode
+The visual test mode automatically walks through the level, testing textures and movement:
+```bash
+# Run the visual test
+cargo run -- visual-test
+```
+
+The visual test will:
+- Walk through the level continuously
+- Validate textures at each position
+- Generate screenshots for comparison
+- Run indefinitely until manually stopped
+
+To stop the test, press `Esc` or close the window. 

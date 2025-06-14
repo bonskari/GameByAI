@@ -25,6 +25,7 @@ pub enum Commands {
         verbose: bool,
     },
     /// Run automated visual tests with bot movement
+    #[command(name = "visual-test")]
     VisualTest {
         /// Test duration in seconds
         #[arg(short, long, default_value = "15")]

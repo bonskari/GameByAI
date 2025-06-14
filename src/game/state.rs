@@ -1,6 +1,7 @@
 use macroquad::prelude::*;
 use std::time::Instant;
 use super::{map::Map, player::Player, renderer_3d::Modern3DRenderer};
+use crate::testing::visual_tests::VisualTestBot;
 
 /// Overall game state for testing and gameplay
 pub struct GameState {
@@ -10,6 +11,7 @@ pub struct GameState {
     pub start_time: Instant,
     pub modern_3d_renderer: Modern3DRenderer,
     pub view_mode_3d: bool, // Toggle between 2D and 3D view
+    pub test_bot: Option<VisualTestBot>,
 }
 
 impl GameState {
@@ -22,13 +24,19 @@ impl GameState {
             start_time: Instant::now(),
             modern_3d_renderer: Modern3DRenderer::new(),
             view_mode_3d: true, // Start in 3D mode by default
+            test_bot: None,
         }
     }
     
     /// Update the game state
-    pub fn update(&mut self, dt: f32) {
-        self.player.update(dt, &self.map);
+    pub fn update(&mut self, delta_time: f32) {
         self.frame_count += 1;
+        self.player.update(delta_time, &self.map);
+        
+        // Update test bot if present
+        if let Some(test_bot) = &mut self.test_bot {
+            test_bot.update(&mut self.player, &self.map, delta_time);
+        }
         
         // Toggle between 2D and 3D view with TAB key
         if is_key_pressed(KeyCode::Tab) {
@@ -117,18 +125,43 @@ impl GameState {
             }
         }
         
-        // Draw player position and direction on minimap
-        let player_x = minimap_x + self.player.x * tile_size;
-        let player_y = minimap_y + self.player.y * tile_size;
+        // Draw pathfinding visualization if test bot is active
+        if let Some(test_bot) = &self.test_bot {
+            // Draw explored nodes (A* search area) in blue
+            for &(x, y) in &test_bot.explored_nodes {
+                let screen_x = minimap_x + x as f32 * tile_size;
+                let screen_y = minimap_y + y as f32 * tile_size;
+                draw_rectangle(screen_x, screen_y, tile_size, tile_size, Color::new(0.3, 0.5, 1.0, 0.4));
+            }
+            
+            // Draw path nodes (actual route) in red
+            for &(x, y) in &test_bot.path_nodes {
+                let screen_x = minimap_x + x as f32 * tile_size;
+                let screen_y = minimap_y + y as f32 * tile_size;
+                draw_rectangle(screen_x, screen_y, tile_size, tile_size, Color::new(1.0, 0.3, 0.3, 0.7));
+            }
+            
+            // Draw current waypoint target in yellow
+            if test_bot.current_waypoint < test_bot.waypoints.len() {
+                let waypoint = &test_bot.waypoints[test_bot.current_waypoint];
+                let target_x = minimap_x + (waypoint.x - 0.5) * tile_size;
+                let target_y = minimap_y + (waypoint.y - 0.5) * tile_size;
+                draw_circle(target_x + tile_size * 0.5, target_y + tile_size * 0.5, tile_size * 0.3, YELLOW);
+            }
+        }
+        
+        // Draw player position and direction
+        let player_screen_x = minimap_x + self.player.x * tile_size;
+        let player_screen_y = minimap_y + self.player.y * tile_size;
         
         // Player dot
-        draw_circle(player_x, player_y, 3.0, YELLOW);
+        draw_circle(player_screen_x, player_screen_y, tile_size * 0.25, GREEN);
         
         // Player direction indicator
-        let direction_length = 8.0;
-        let end_x = player_x + direction_length * self.player.rotation.cos();
-        let end_y = player_y + direction_length * self.player.rotation.sin();
-        draw_line(player_x, player_y, end_x, end_y, 2.0, RED);
+        let dir_length = tile_size * 0.4;
+        let dir_end_x = player_screen_x + dir_length * self.player.rotation.cos();
+        let dir_end_y = player_screen_y + dir_length * self.player.rotation.sin();
+        draw_line(player_screen_x, player_screen_y, dir_end_x, dir_end_y, 2.0, GREEN);
         
         // Minimap label
         draw_text("MINIMAP", minimap_x, minimap_y - 5.0, 12.0, WHITE);

@@ -83,6 +83,15 @@ impl Modern3DRenderer {
             vec3(0.0, -1.0, 0.0),  // Bottom
         ];
 
+        // Scale factors for different wall types
+        let (u_scale, v_scale) = match wall_type {
+            WallType::TechPanel => (3.0, 4.0),      // 3 panels horizontally, 4 vertically
+            WallType::HullPlating => (2.5, 3.0),    // 2.5 plates horizontally, 3 vertically
+            WallType::ControlSystem => (2.0, 3.0),  // 2 screens horizontally, 3 vertically
+            WallType::EnergyConduit => (2.0, 2.0),  // 2 conduits in each direction
+            _ => (1.0, 1.0),                        // Default scaling
+        };
+
         let faces: &[(Vec3, Vec3, Vec3, Vec3, bool, usize)] = &[
             (v0, v1, v2, v3, true, 0), // Front face
             (v5, v4, v7, v6, true, 1), // Back face
@@ -95,12 +104,24 @@ impl Modern3DRenderer {
         for (p0, p1, p2, p3, is_vertical, normal_idx) in faces.iter() {
             let base = data.vertices.len() as u32;
             let normal = normals[*normal_idx];
-            let uvs = [
-                vec2(0.0, 0.0),
-                vec2(1.0, 0.0),
-                vec2(1.0, 1.0),
-                vec2(0.0, 1.0),
-            ];
+            
+            // Scale UVs based on wall type and face orientation
+            let uvs = if *is_vertical {
+                [
+                    vec2(0.0, 0.0),
+                    vec2(u_scale, 0.0),
+                    vec2(u_scale, v_scale),
+                    vec2(0.0, v_scale),
+                ]
+            } else {
+                [
+                    vec2(0.0, 0.0),
+                    vec2(1.0, 0.0),
+                    vec2(1.0, 1.0),
+                    vec2(0.0, 1.0),
+                ]
+            };
+
             Self::add_vertex(data, *p0, uvs[0], *is_vertical, height, map, *wall_type, vec4(normal.x, normal.y, normal.z, 0.0));
             Self::add_vertex(data, *p1, uvs[1], *is_vertical, height, map, *wall_type, vec4(normal.x, normal.y, normal.z, 0.0));
             Self::add_vertex(data, *p2, uvs[2], *is_vertical, height, map, *wall_type, vec4(normal.x, normal.y, normal.z, 0.0));

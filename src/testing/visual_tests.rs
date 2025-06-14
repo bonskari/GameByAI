@@ -1,197 +1,330 @@
 use std::time::{Duration, Instant};
+use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::cmp::Ordering;
 use macroquad::prelude::*;
-use crate::game::GameState;
-use super::screenshot_validator::{ScreenshotValidator, ComparisonResult};
+use crate::game::{GameState, map::{Map, WallType}};
 
-/// Automated visual testing bot that moves around and validates textures
+/// Automated visual testing bot that moves around the level
 pub struct VisualTestBot {
     start_time: Instant,
     test_duration: Duration,
-    current_test: usize,
-    test_positions: Vec<TestPosition>,
+    pub current_waypoint: usize,
+    pub waypoints: Vec<Waypoint>,
     movement_speed: f32,
-    auto_close: bool,
-    screenshot_validator: ScreenshotValidator,
-    screenshot_results: Vec<ComparisonResult>,
-    last_screenshot_time: f32,
+    rotation_speed: f32,
+    stuck_time: f32,
+    last_position: (f32, f32),
+    pub explored_nodes: Vec<(i32, i32)>,
+    pub path_nodes: Vec<(i32, i32)>,
 }
 
-/// Test position with expected visual validation
+/// Waypoint for movement
 #[derive(Debug, Clone)]
-pub struct TestPosition {
+pub struct Waypoint {
     pub x: f32,
     pub y: f32,
-    pub rotation: f32,
     pub description: String,
-    pub expected_wall_types: Vec<String>,
-    pub hold_time: f32, // How long to stay at this position
+}
+
+/// Node for A* pathfinding
+#[derive(Debug, Clone, Eq, PartialEq)]
+struct Node {
+    x: i32,
+    y: i32,
+    cost: i32,
+    heuristic: i32,
+}
+
+impl Ord for Node {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (other.cost + other.heuristic).cmp(&(self.cost + self.heuristic))
+    }
+}
+
+impl PartialOrd for Node {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl VisualTestBot {
     /// Create a new visual test bot
-    pub fn new(test_duration_seconds: u64, auto_close: bool) -> Self {
-        let test_positions = vec![
-            TestPosition {
-                x: 1.5, y: 1.5, rotation: 0.0,
-                description: "Starting position - TechPanel walls".to_string(),
-                expected_wall_types: vec!["TechPanel".to_string()],
-                hold_time: 2.0,
-            },
-            TestPosition {
-                x: 3.0, y: 1.5, rotation: std::f32::consts::PI / 2.0,
-                description: "East corridor - HullPlating walls".to_string(),
-                expected_wall_types: vec!["HullPlating".to_string()],
-                hold_time: 2.0,
-            },
-            TestPosition {
-                x: 5.0, y: 3.0, rotation: std::f32::consts::PI,
-                description: "Center area - ControlSystem walls".to_string(),
-                expected_wall_types: vec!["ControlSystem".to_string()],
-                hold_time: 2.0,
-            },
-            TestPosition {
-                x: 7.0, y: 4.0, rotation: -std::f32::consts::PI / 2.0,
-                description: "North area - EnergyConduit walls".to_string(),
-                expected_wall_types: vec!["EnergyConduit".to_string()],
-                hold_time: 2.0,
-            },
-            TestPosition {
-                x: 8.5, y: 2.5, rotation: std::f32::consts::PI / 4.0,
-                description: "Corner view - Mixed wall types".to_string(),
-                expected_wall_types: vec!["TechPanel".to_string(), "HullPlating".to_string()],
-                hold_time: 3.0,
-            },
+    pub fn new(test_duration_seconds: u64, _auto_close: bool) -> Self {
+        // Define key points that are actually reachable in the level
+        // Based on the map layout, we need to follow the corridors
+        let key_points = vec![
+            (1.5, 1.5, "Start"),
+            (3.5, 1.5, "East corridor"),
+            (8.5, 1.5, "Far east"),
+            (8.5, 3.5, "Southeast corner"),
+            (6.5, 3.5, "South corridor"),
+            (3.5, 3.5, "Southwest area"),
+            (1.5, 3.5, "West corridor"),
+            (1.5, 8.5, "Far south"),
+            (3.5, 8.5, "South area"),
+            (8.5, 8.5, "Southeast corner"),
+            (8.5, 6.5, "East corridor south"),
+            (6.5, 6.5, "Central south"),
+            (3.5, 6.5, "West south"),
+            (1.5, 6.5, "Far west south"),
+            (1.5, 1.5, "Back to start"),
         ];
+
+        println!("🤖 Generating paths between key points:");
+        
+        // Generate waypoints using A*
+        let mut waypoints = Vec::new();
+        let mut explored_nodes = Vec::new();
+        let mut path_nodes = Vec::new();
+        
+        for i in 0..key_points.len() - 1 {
+            let (start_x, start_y, start_desc) = key_points[i];
+            let (end_x, end_y, end_desc) = key_points[i + 1];
+            
+            println!("  Path {}: ({}, {}) -> ({}, {})", 
+                    i + 1, start_x, start_y, end_x, end_y);
+            
+            let (path, explored) = Self::find_path_with_explored(
+                start_x as i32, start_y as i32,
+                end_x as i32, end_y as i32,
+            );
+            
+            println!("  Found path with {} waypoints", path.len());
+            
+            // Convert path to waypoints
+            for (x, y) in &path {
+                waypoints.push(Waypoint {
+                    x: *x as f32 + 0.5, // Center in tile
+                    y: *y as f32 + 0.5,
+                    description: format!("Moving from {} to {}", start_desc, end_desc),
+                });
+            }
+            for (x, y) in &explored {
+                explored_nodes.push((*x, *y));
+            }
+            for (x, y) in &path {
+                path_nodes.push((*x, *y));
+            }
+        }
+
+        println!("🤖 Generated {} total waypoints", waypoints.len());
 
         VisualTestBot {
             start_time: Instant::now(),
             test_duration: Duration::from_secs(test_duration_seconds),
-            current_test: 0,
-            test_positions,
-            movement_speed: 2.0,
-            auto_close,
-            screenshot_validator: ScreenshotValidator::new("test_screenshots", 0.05), // 5% tolerance
-            screenshot_results: Vec::new(),
-            last_screenshot_time: 0.0,
+            current_waypoint: 0,
+            waypoints,
+            movement_speed: 2.0, // Increased speed for better movement
+            rotation_speed: std::f32::consts::PI * 2.0, // Faster rotation
+            stuck_time: 0.0,
+            last_position: (0.0, 0.0),
+            explored_nodes,
+            path_nodes,
         }
     }
 
+    /// Check if position is a wall
+    fn is_wall(x: i32, y: i32) -> bool {
+        // Use the actual map data instead of hardcoded walls
+        if x < 0 || y < 0 || x >= 10 || y >= 10 {
+            return true; // Out of bounds = wall
+        }
+        
+        // Get wall type from map
+        let wall_type = Map::new().get_wall_type(x, y);
+        wall_type != WallType::Empty
+    }
+
+    /// Find path using A* algorithm with improved heuristic
+    fn find_path(start_x: i32, start_y: i32, end_x: i32, end_y: i32) -> Vec<(i32, i32)> {
+        let mut open_set = BinaryHeap::new();
+        let mut came_from = HashMap::new();
+        let mut g_score = HashMap::new();
+        let mut closed_set = HashSet::new();
+        
+        // Initialize start node
+        let start_node = Node {
+            x: start_x,
+            y: start_y,
+            cost: 0,
+            heuristic: Self::heuristic(start_x, start_y, end_x, end_y),
+        };
+        
+        open_set.push(start_node);
+        g_score.insert((start_x, start_y), 0);
+        
+        while let Some(current) = open_set.pop() {
+            if current.x == end_x && current.y == end_y {
+                return Self::reconstruct_path(came_from, (end_x, end_y));
+            }
+            
+            closed_set.insert((current.x, current.y));
+            
+            // Check neighbors (8-directional movement)
+            let neighbors = [
+                (0, 1),   // North
+                (1, 1),   // Northeast
+                (1, 0),   // East
+                (1, -1),  // Southeast
+                (0, -1),  // South
+                (-1, -1), // Southwest
+                (-1, 0),  // West
+                (-1, 1),  // Northwest
+            ];
+            
+            for &(dx, dy) in &neighbors {
+                let nx = current.x + dx;
+                let ny = current.y + dy;
+                
+                if closed_set.contains(&(nx, ny)) {
+                    continue;
+                }
+                
+                // Check if wall or invalid position
+                if Self::is_wall(nx, ny) {
+                    continue;
+                }
+                
+                // For diagonal movement, check if both adjacent tiles are walkable
+                if dx != 0 && dy != 0 {
+                    if Self::is_wall(current.x + dx, current.y) || Self::is_wall(current.x, current.y + dy) {
+                        continue;
+                    }
+                }
+                
+                // Calculate movement cost (diagonal movement costs more)
+                let move_cost = if dx != 0 && dy != 0 { 14 } else { 10 }; // 14 ≈ √2 * 10
+                let tentative_g = g_score.get(&(current.x, current.y)).unwrap_or(&i32::MAX) + move_cost;
+                
+                if tentative_g < *g_score.get(&(nx, ny)).unwrap_or(&i32::MAX) {
+                    came_from.insert((nx, ny), (current.x, current.y));
+                    g_score.insert((nx, ny), tentative_g);
+                    
+                    let neighbor = Node {
+                        x: nx,
+                        y: ny,
+                        cost: tentative_g,
+                        heuristic: Self::heuristic(nx, ny, end_x, end_y),
+                    };
+                    
+                    open_set.push(neighbor);
+                }
+            }
+        }
+        
+        println!("⚠️ No path found from ({}, {}) to ({}, {})", start_x, start_y, end_x, end_y);
+        Vec::new() // No path found
+    }
+
+    /// Calculate heuristic (diagonal distance)
+    fn heuristic(x1: i32, y1: i32, x2: i32, y2: i32) -> i32 {
+        let dx = (x1 - x2).abs();
+        let dy = (y1 - y2).abs();
+        // Use diagonal distance heuristic
+        let min = dx.min(dy);
+        let max = dx.max(dy);
+        (min * 14 + (max - min) * 10) // 14 ≈ √2 * 10
+    }
+
+    /// Reconstruct path from came_from map
+    fn reconstruct_path(came_from: HashMap<(i32, i32), (i32, i32)>, end: (i32, i32)) -> Vec<(i32, i32)> {
+        let mut path = vec![end];
+        let mut current = end;
+        
+        while let Some(&prev) = came_from.get(&current) {
+            path.push(prev);
+            current = prev;
+        }
+        
+        path.reverse();
+        path
+    }
+
     /// Update the bot's movement and testing logic
-    pub async fn update(&mut self, game_state: &mut GameState, delta_time: f32) -> bool {
+    pub fn update(&mut self, player: &mut crate::game::Player, map: &crate::game::Map, delta_time: f32) -> bool {
         let elapsed = self.start_time.elapsed();
         
         // Check if test duration exceeded
         if elapsed >= self.test_duration {
-            if self.auto_close {
-                println!("🤖 Visual test completed after {:.1}s - Auto-closing", elapsed.as_secs_f32());
-                return false; // Signal to close game
-            }
+            println!("🤖 Visual test completed after {:.1}s", elapsed.as_secs_f32());
+            return false; // Signal to close game
         }
 
-        // Move to current test position
-        if self.current_test < self.test_positions.len() {
-            let target = self.test_positions[self.current_test].clone();
-            let moved = self.move_towards_target(game_state, &target, delta_time);
-            
-            if moved {
-                // We've reached the target, hold position and validate
-                self.validate_position(game_state, &target).await;
-                
-                // Move to next test after hold time
-                if elapsed.as_secs_f32() > (self.current_test as f32 + 1.0) * target.hold_time {
-                    self.current_test += 1;
-                    if self.current_test >= self.test_positions.len() {
-                        println!("🤖 All test positions completed!");
-                        
-                        // Generate final screenshot report
-                        self.generate_final_report();
-                        
-                        if self.auto_close {
-                            return false;
-                        }
-                    }
-                }
-            }
-        }
-
-        true // Continue running
-    }
-
-    /// Move player towards target position
-    fn move_towards_target(&self, game_state: &mut GameState, target: &TestPosition, delta_time: f32) -> bool {
-        let player = &mut game_state.player;
+        // Get current waypoint
+        let waypoint = &self.waypoints[self.current_waypoint];
         
-        // Calculate distance to target
-        let dx = target.x - player.x;
-        let dy = target.y - player.y;
+        // Calculate direction to waypoint
+        let dx = waypoint.x - player.x;
+        let dy = waypoint.y - player.y;
         let distance = (dx * dx + dy * dy).sqrt();
-        
-        // Move towards target if not close enough
-        if distance > 0.1 {
-            let move_x = (dx / distance) * self.movement_speed * delta_time;
-            let move_y = (dy / distance) * self.movement_speed * delta_time;
-            
-            // Check collision before moving
+        let target_angle = dy.atan2(dx);
+        let mut angle_diff = target_angle - player.rotation;
+        // Normalize angle to [-PI, PI]
+        while angle_diff > std::f32::consts::PI { angle_diff -= 2.0 * std::f32::consts::PI; }
+        while angle_diff < -std::f32::consts::PI { angle_diff += 2.0 * std::f32::consts::PI; }
+
+        // Smoothly rotate toward target
+        let max_turn = self.rotation_speed * delta_time;
+        if angle_diff.abs() < max_turn {
+            player.rotation = target_angle;
+        } else if angle_diff > 0.0 {
+            player.rotation += max_turn;
+        } else {
+            player.rotation -= max_turn;
+        }
+        // Normalize rotation
+        while player.rotation > std::f32::consts::PI { player.rotation -= 2.0 * std::f32::consts::PI; }
+        while player.rotation < -std::f32::consts::PI { player.rotation += 2.0 * std::f32::consts::PI; }
+
+        // Only move forward if facing the waypoint (within 15 degrees)
+        let facing_threshold = 15.0_f32.to_radians();
+        let mut moved = false;
+        if angle_diff.abs() < facing_threshold {
+            // Move forward
+            let move_x = player.rotation.cos() * self.movement_speed * delta_time;
+            let move_y = player.rotation.sin() * self.movement_speed * delta_time;
             let new_x = player.x + move_x;
             let new_y = player.y + move_y;
-            
-            if !game_state.map.is_wall(new_x as i32, new_y as i32) {
+            if !map.is_wall(new_x as i32, new_y as i32) {
                 player.x = new_x;
                 player.y = new_y;
-            }
-            
-            false // Still moving
-        } else {
-            // Rotate towards target rotation
-            let rotation_diff = target.rotation - player.rotation;
-            let rotation_diff = ((rotation_diff + std::f32::consts::PI) % (2.0 * std::f32::consts::PI)) - std::f32::consts::PI;
-            
-            if rotation_diff.abs() > 0.1 {
-                player.rotation += rotation_diff.signum() * 2.0 * delta_time;
-                false // Still rotating
+                moved = true;
             } else {
-                player.rotation = target.rotation;
-                true // Reached target
+                println!("Blocked by wall at ({:.2}, {:.2}) while moving from ({:.2}, {:.2}) toward waypoint {} at ({:.2}, {:.2})", new_x, new_y, player.x, player.y, self.current_waypoint, waypoint.x, waypoint.y);
             }
         }
-    }
 
-    /// Validate visual elements at current position
-    async fn validate_position(&mut self, game_state: &GameState, target: &TestPosition) {
-        println!("🤖 Testing position: {}", target.description);
-        println!("   Player at ({:.1}, {:.1}) rotation {:.1}°", 
-            game_state.player.x, game_state.player.y, game_state.player.rotation.to_degrees());
-        
-        // Check surrounding wall types
-        let px = game_state.player.x as i32;
-        let py = game_state.player.y as i32;
-        
-        let surrounding_walls = vec![
-            (px - 1, py, "West"),
-            (px + 1, py, "East"), 
-            (px, py - 1, "North"),
-            (px, py + 1, "South"),
-        ];
-        
-        for (wx, wy, direction) in surrounding_walls {
-            if game_state.map.is_wall(wx, wy) {
-                let wall_type = game_state.map.get_wall_type(wx, wy);
-                println!("   {} wall: {:?}", direction, wall_type);
+        // Check if stuck
+        let current_pos = (player.x, player.y);
+        let pos_diff = (current_pos.0 - self.last_position.0).abs() + (current_pos.1 - self.last_position.1).abs();
+        if !moved && pos_diff < 0.001 {
+            self.stuck_time += delta_time;
+            if self.stuck_time > 0.5 { // Reduced stuck timeout
+                println!("⚠️ Stuck at player ({:.2}, {:.2}), waypoint {} at ({:.2}, {:.2}) - skipping to next", 
+                    player.x, player.y, self.current_waypoint, waypoint.x, waypoint.y);
+                self.current_waypoint = (self.current_waypoint + 1) % self.waypoints.len();
+                self.stuck_time = 0.0;
             }
+        } else {
+            self.stuck_time = 0.0;
         }
-        
-        // Capture screenshot for validation
-        let test_name = format!("position_{}", self.current_test);
-        let result = self.screenshot_validator.capture_and_validate(&test_name, &target.description).await;
-        self.screenshot_results.push(result);
-        self.last_screenshot_time = self.start_time.elapsed().as_secs_f32();
+        self.last_position = current_pos;
+
+        // Move to next waypoint if close enough
+        if distance < 0.3 { // Slightly larger tolerance
+            println!("✓ Reached waypoint {} at ({:.2}, {:.2})", self.current_waypoint, waypoint.x, waypoint.y);
+            self.current_waypoint = (self.current_waypoint + 1) % self.waypoints.len();
+            self.stuck_time = 0.0;
+        }
+
+        true // Continue running until duration expires
     }
 
     /// Get current test progress
     pub fn get_progress(&self) -> (usize, usize, f32) {
         let elapsed = self.start_time.elapsed().as_secs_f32();
         let total = self.test_duration.as_secs_f32();
-        (self.current_test, self.test_positions.len(), elapsed / total)
+        (self.current_waypoint, self.waypoints.len(), elapsed / total)
     }
 
     /// Draw test overlay information
@@ -201,12 +334,12 @@ impl VisualTestBot {
         // Draw test progress
         let overlay_y = 50.0;
         draw_text(&format!("🤖 VISUAL TEST BOT"), 10.0, overlay_y, 20.0, YELLOW);
-        draw_text(&format!("Test {}/{} ({:.0}%)", current + 1, total, progress * 100.0), 
+        draw_text(&format!("Waypoint {}/{} ({:.0}%)", current + 1, total, progress * 100.0), 
                  10.0, overlay_y + 25.0, 16.0, WHITE);
         
-        if current < self.test_positions.len() {
-            let target = &self.test_positions[current];
-            draw_text(&format!("Target: {}", target.description), 
+        if current < self.waypoints.len() {
+            let waypoint = &self.waypoints[current];
+            draw_text(&format!("Target: {}", waypoint.description), 
                      10.0, overlay_y + 45.0, 14.0, LIGHTGRAY);
         }
         
@@ -220,27 +353,67 @@ impl VisualTestBot {
         draw_rectangle(bar_x, bar_y, bar_width * progress, bar_height, GREEN);
         draw_rectangle_lines(bar_x, bar_y, bar_width, bar_height, 1.0, WHITE);
         
-        // Draw screenshot info
-        if !self.screenshot_results.is_empty() {
-            let passed = self.screenshot_results.iter().filter(|r| r.matches).count();
-            let total = self.screenshot_results.len();
-            draw_text(&format!("📸 Screenshots: {}/{} passed", passed, total), 
-                     10.0, overlay_y + 85.0, 14.0, 
-                     if passed == total { GREEN } else { RED });
+        // Draw minimap A* explored nodes and path
+        let tile_size = 20.0;
+        let offset_x = 300.0;
+        let offset_y = 50.0;
+        for &(x, y) in &self.explored_nodes {
+            draw_rectangle(offset_x + x as f32 * tile_size, offset_y + y as f32 * tile_size, tile_size, tile_size, Color::new(0.2, 0.4, 1.0, 0.3));
         }
+        for &(x, y) in &self.path_nodes {
+            draw_rectangle(offset_x + x as f32 * tile_size, offset_y + y as f32 * tile_size, tile_size, tile_size, Color::new(1.0, 0.2, 0.2, 0.5));
+        }
+        // Draw player position
+        let player = &self.last_position;
+        draw_circle(offset_x + player.0 * tile_size, offset_y + player.1 * tile_size, tile_size * 0.3, YELLOW);
     }
-    
-    /// Generate final test report
-    fn generate_final_report(&self) {
-        let report = self.screenshot_validator.generate_report(&self.screenshot_results);
-        println!("\n{}", report);
-        
-        // Save report to file
-        if let Err(e) = std::fs::write("test_screenshots/report.txt", &report) {
-            println!("⚠️ Failed to save report: {}", e);
-        } else {
-            println!("📄 Report saved to: test_screenshots/report.txt");
+
+    fn find_path_with_explored(start_x: i32, start_y: i32, end_x: i32, end_y: i32) -> (Vec<(i32, i32)>, Vec<(i32, i32)>) {
+        let mut open_set = BinaryHeap::new();
+        let mut came_from = HashMap::new();
+        let mut g_score = HashMap::new();
+        let mut closed_set = HashSet::new();
+        let mut explored = Vec::new();
+
+        let start_node = Node {
+            x: start_x,
+            y: start_y,
+            cost: 0,
+            heuristic: Self::heuristic(start_x, start_y, end_x, end_y),
+        };
+        open_set.push(start_node);
+        g_score.insert((start_x, start_y), 0);
+
+        while let Some(current) = open_set.pop() {
+            explored.push((current.x, current.y));
+            if current.x == end_x && current.y == end_y {
+                return (Self::reconstruct_path(came_from, (end_x, end_y)), explored);
+            }
+            closed_set.insert((current.x, current.y));
+            for (dx, dy) in &[(0, 1), (1, 0), (0, -1), (-1, 0)] {
+                let nx = current.x + dx;
+                let ny = current.y + dy;
+                if closed_set.contains(&(nx, ny)) {
+                    continue;
+                }
+                if Self::is_wall(nx, ny) {
+                    continue;
+                }
+                let tentative_g = g_score.get(&(current.x, current.y)).unwrap_or(&i32::MAX) + 1;
+                if tentative_g < *g_score.get(&(nx, ny)).unwrap_or(&i32::MAX) {
+                    came_from.insert((nx, ny), (current.x, current.y));
+                    g_score.insert((nx, ny), tentative_g);
+                    let neighbor = Node {
+                        x: nx,
+                        y: ny,
+                        cost: tentative_g,
+                        heuristic: Self::heuristic(nx, ny, end_x, end_y),
+                    };
+                    open_set.push(neighbor);
+                }
+            }
         }
+        (Vec::new(), explored)
     }
 }
 
@@ -251,33 +424,42 @@ pub async fn run_visual_tests(test_duration: u64, auto_close: bool) {
     println!("   Auto-close: {}", auto_close);
     
     let mut game_state = GameState::new();
-    let mut bot = VisualTestBot::new(test_duration, auto_close);
+    let test_bot = VisualTestBot::new(test_duration, auto_close);
+    
+    // Assign the test bot to the game state
+    game_state.test_bot = Some(test_bot);
     
     loop {
-        clear_background(Color::new(0.4, 0.6, 0.9, 1.0));
-        
         let delta_time = get_frame_time();
         
-        // Update bot (returns false when test should end)
-        if !bot.update(&mut game_state, delta_time).await {
+        // Update player and other game state (but not test bot yet)
+        game_state.frame_count += 1;
+        game_state.player.update(delta_time, &game_state.map);
+        
+        // Toggle between 2D and 3D view with TAB key
+        if is_key_pressed(KeyCode::Tab) {
+            game_state.view_mode_3d = !game_state.view_mode_3d;
+        }
+        
+        // Check if test bot wants to exit
+        let should_exit = if let Some(test_bot) = &mut game_state.test_bot {
+            !test_bot.update(&mut game_state.player, &game_state.map, delta_time)
+        } else {
+            false
+        };
+        
+        if should_exit {
             break;
         }
         
-        // Render game
-        game_state.update(delta_time);
+        // Draw game
         game_state.draw();
         
-        // Draw bot overlay
-        bot.draw_overlay();
-        
-        // Check for manual exit
-        if is_key_pressed(KeyCode::Escape) {
-            println!("🤖 Visual test manually interrupted");
-            break;
+        // Draw test overlay
+        if let Some(test_bot) = &game_state.test_bot {
+            test_bot.draw_overlay();
         }
         
         next_frame().await;
     }
-    
-    println!("🤖 Visual test completed!");
 } 

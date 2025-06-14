@@ -1,6 +1,4 @@
 use macroquad::prelude::*;
-use std::collections::HashMap;
-use crate::game::player::Player;
 
 /// Map system - grid-based like classic Wolfenstein
 pub struct Map {
@@ -96,7 +94,7 @@ impl Map {
         }
     }
     
-        /// Get ultra-detailed sci-fi space station texture color based on 2D coordinates
+    /// Get ultra-detailed sci-fi space station texture color based on 2D coordinates
     pub fn get_procedural_texture_color(&self, wall_type: WallType, is_vertical: bool, u: f32, v: f32) -> Color {
         let mut base_color = self.get_wall_color(wall_type, is_vertical);
         
@@ -104,62 +102,44 @@ impl Map {
         match wall_type {
             WallType::TechPanel => {
                 // Advanced tech panels with circuits, LED strips, and holographic displays
-                let panel_u = u * 3.0; // 3 panels horizontally
-                let panel_v = v * 4.0; // 4 panels vertically
+                let panel_u = u; // Already scaled in renderer
+                let panel_v = v; // Already scaled in renderer
                 let local_u = panel_u % 1.0;
                 let local_v = panel_v % 1.0;
                 
                 // Panel frame with beveled edges
                 let frame_width = 0.06;
                 let is_frame = local_u < frame_width || local_u > 1.0 - frame_width || 
-                              local_v < frame_width || local_v > 1.0 - frame_width;
+                             local_v < frame_width || local_v > 1.0 - frame_width;
                 
                 if is_frame {
-                    // Brushed metal frame with subtle chrome effect
-                    base_color.r = (base_color.r + 0.08).min(1.0);
-                    base_color.g = (base_color.g + 0.08).min(1.0);
-                    base_color.b = (base_color.b + 0.08).min(1.0);
+                    // Darker frame color
+                    base_color.r *= 0.7;
+                    base_color.g *= 0.7;
+                    base_color.b *= 0.7;
                 } else {
-                    // Circuit patterns
-                    let circuit_u = (local_u - frame_width) * 1.2;
-                    let circuit_v = (local_v - frame_width) * 1.2;
+                    // Panel interior with circuit patterns
+                    let circuit_pattern = ((local_u * 20.0).sin() * (local_v * 20.0).cos()).abs();
+                    let led_pattern = ((local_u * 10.0).floor() as i32 + (local_v * 8.0).floor() as i32) % 2;
                     
-                    // Horizontal circuit traces
-                    let h_traces = ((circuit_v * 20.0) % 1.0 < 0.08) as u8 as f32;
-                    // Vertical circuit traces  
-                    let v_traces = ((circuit_u * 15.0) % 1.0 < 0.06) as u8 as f32;
-                    // Circuit nodes at intersections
-                    let node_dist = (circuit_u * 15.0 % 1.0 - 0.5).abs() + (circuit_v * 20.0 % 1.0 - 0.5).abs();
-                    let is_node = node_dist < 0.15 && ((circuit_u * 15.0).floor() as i32 + (circuit_v * 20.0).floor() as i32) % 3 == 0;
-                    
-                    // LED status lights
-                    let led_pattern = ((local_u * 8.0).floor() as i32 + (local_v * 6.0).floor() as i32) % 7;
-                    let led_brightness = if led_pattern == 0 {
-                        (((u + v) * 10.0).sin() * 0.5 + 0.5) * 0.4 // Pulsing LEDs
-                    } else { 0.0 };
-                    
-                    if is_node {
-                        // Bright circuit nodes
-                        base_color.r = (base_color.r + 0.3).min(1.0);
-                        base_color.g = (base_color.g + 0.4).min(1.0);
-                        base_color.b = (base_color.b + 0.6).min(1.0);
-                    } else if h_traces > 0.0 || v_traces > 0.0 {
-                        // Circuit traces - subtle cyan glow
-                        base_color.r = (base_color.r + 0.05).min(1.0);
-                        base_color.g = (base_color.g + 0.15).min(1.0);
-                        base_color.b = (base_color.b + 0.25).min(1.0);
+                    if led_pattern == 0 {
+                        // LED strip
+                        let led_brightness = (local_u * 8.0 + local_v * 4.0).sin() * 0.3 + 0.7;
+                        base_color.r = (base_color.r + led_brightness * 0.2).min(1.0);
+                        base_color.g = (base_color.g + led_brightness * 0.4).min(1.0);
+                        base_color.b = (base_color.b + led_brightness * 0.6).min(1.0);
+                    } else {
+                        // Circuit pattern
+                        base_color.r = (base_color.r + circuit_pattern * 0.1).min(1.0);
+                        base_color.g = (base_color.g + circuit_pattern * 0.15).min(1.0);
+                        base_color.b = (base_color.b + circuit_pattern * 0.2).min(1.0);
                     }
-                    
-                    // Add LED lighting
-                    base_color.r = (base_color.r + led_brightness * 0.8).min(1.0);
-                    base_color.g = (base_color.g + led_brightness * 1.0).min(1.0);
-                    base_color.b = (base_color.b + led_brightness * 0.3).min(1.0);
                 }
             },
             WallType::HullPlating => {
                 // Heavy duty reinforced hull with battle damage and wear
-                let plate_u = u * 2.5; // 2.5 plates horizontally
-                let plate_v = v * 3.0; // 3 rows vertically
+                let plate_u = u; // Already scaled in renderer
+                let plate_v = v; // Already scaled in renderer
                 let local_u = plate_u % 1.0;
                 let local_v = plate_v % 1.0;
                 
@@ -168,41 +148,25 @@ impl Map {
                 let is_seam = local_u < seam_width || local_u > 1.0 - seam_width || 
                              local_v < seam_width || local_v > 1.0 - seam_width;
                 
-                // Rivet pattern
-                let rivet_spacing = 0.15;
-                let rivet_u = (local_u / rivet_spacing) % 1.0;
-                let rivet_v = (local_v / rivet_spacing) % 1.0;
-                let rivet_dist = ((rivet_u - 0.5).powi(2) + (rivet_v - 0.5).powi(2)).sqrt();
-                let is_rivet = rivet_dist < 0.3;
-                
-                // Battle damage and scratches
-                let damage_pattern = ((u * 47.0).sin() * (v * 31.0).cos() + (u * 23.0).cos() * (v * 19.0).sin()).abs();
-                let scratch_pattern = ((u * 150.0 + v * 200.0).sin()).abs();
-                
                 if is_seam {
-                    // Dark welded seams
-                    base_color.r *= 0.4;
-                    base_color.g *= 0.4;
-                    base_color.b *= 0.4;
-                } else if is_rivet {
-                    // Raised rivets
-                    base_color.r = (base_color.r + 0.15).min(1.0);
-                    base_color.g = (base_color.g + 0.15).min(1.0);
-                    base_color.b = (base_color.b + 0.15).min(1.0);
+                    // Darker seam color
+                    base_color.r *= 0.5;
+                    base_color.g *= 0.5;
+                    base_color.b *= 0.5;
                 } else {
-                    // Hull surface with wear and damage
-                    let wear = damage_pattern * 0.15;
-                    let scratches = if scratch_pattern > 0.92 { -0.1 } else { 0.0 };
+                    // Plate surface with wear and damage
+                    let wear_pattern = ((local_u * 30.0).sin() * (local_v * 30.0).cos()).abs();
+                    let damage_pattern = ((local_u * 47.0).sin() * (local_v * 31.0).cos()).abs();
                     
-                    base_color.r = (base_color.r - wear + scratches).clamp(0.0, 1.0);
-                    base_color.g = (base_color.g - wear + scratches).clamp(0.0, 1.0);
-                    base_color.b = (base_color.b - wear + scratches).clamp(0.0, 1.0);
+                    base_color.r = (base_color.r - wear_pattern * 0.1 - damage_pattern * 0.05).max(0.0);
+                    base_color.g = (base_color.g - wear_pattern * 0.1 - damage_pattern * 0.05).max(0.0);
+                    base_color.b = (base_color.b - wear_pattern * 0.1 - damage_pattern * 0.05).max(0.0);
                 }
             },
             WallType::ControlSystem => {
-                // Advanced control panels with holographic displays and interface elements
-                let screen_u = u * 2.0; // 2 screens horizontally
-                let screen_v = v * 3.0; // 3 screens vertically
+                // Advanced control panels with holographic displays
+                let screen_u = u; // Already scaled in renderer
+                let screen_v = v; // Already scaled in renderer
                 let local_u = screen_u % 1.0;
                 let local_v = screen_v % 1.0;
                 
@@ -211,76 +175,35 @@ impl Map {
                 let is_bezel = local_u < bezel_width || local_u > 1.0 - bezel_width || 
                               local_v < bezel_width || local_v > 1.0 - bezel_width;
                 
-                // Control buttons and interfaces
-                let button_pattern = ((local_u * 6.0).floor() as i32 + (local_v * 4.0).floor() as i32) % 5;
-                let button_u = (local_u * 6.0) % 1.0;
-                let button_v = (local_v * 4.0) % 1.0;
-                let button_dist = ((button_u - 0.5).powi(2) + (button_v - 0.5).powi(2)).sqrt();
-                let is_button = button_dist < 0.3 && button_pattern < 2;
-                
                 if is_bezel {
-                    // Dark control panel housing
+                    // Darker bezel color
                     base_color.r *= 0.6;
                     base_color.g *= 0.6;
                     base_color.b *= 0.6;
-                } else if is_button {
-                    // Illuminated control buttons
-                    let button_brightness = (((u + v) * 8.0 + button_pattern as f32).sin() * 0.3 + 0.7);
-                    base_color.r = (base_color.r + button_brightness * 0.4).min(1.0);
-                    base_color.g = (base_color.g + button_brightness * 0.6).min(1.0);
-                    base_color.b = (base_color.b + button_brightness * 0.8).min(1.0);
                 } else {
-                    // Holographic display patterns
-                    let holo_lines = ((local_v * 40.0) % 1.0 < 0.05) as u8 as f32;
-                    let data_stream = ((local_u * 30.0 + v * 200.0).sin() * 0.5 + 0.5);
+                    // Screen content with holographic effect
+                    let hologram_pattern = ((local_u * 15.0).sin() * (local_v * 15.0).cos()).abs();
+                    let data_stream = (local_u * 30.0 + local_v * 20.0).sin() * 0.5 + 0.5;
                     
-                    // Cyan holographic glow
-                    base_color.r = (base_color.r + holo_lines * 0.1 + data_stream * 0.05).min(1.0);
-                    base_color.g = (base_color.g + holo_lines * 0.3 + data_stream * 0.15).min(1.0);
-                    base_color.b = (base_color.b + holo_lines * 0.4 + data_stream * 0.2).min(1.0);
+                    base_color.r = (base_color.r + hologram_pattern * 0.2 + data_stream * 0.1).min(1.0);
+                    base_color.g = (base_color.g + hologram_pattern * 0.3 + data_stream * 0.2).min(1.0);
+                    base_color.b = (base_color.b + hologram_pattern * 0.4 + data_stream * 0.3).min(1.0);
                 }
             },
             WallType::EnergyConduit => {
-                // Glowing energy conduit systems with power flow patterns
-                let conduit_u = u * 1.5; // 1.5 conduit sections horizontally
-                let conduit_v = v * 4.0; // 4 conduit sections vertically
+                // Energy conduit with glowing effects
+                let conduit_u = u; // Already scaled in renderer
+                let conduit_v = v; // Already scaled in renderer
                 let local_u = conduit_u % 1.0;
                 let local_v = conduit_v % 1.0;
                 
-                // Conduit housing
-                let housing_width = 0.1;
-                let is_housing = local_u < housing_width || local_u > 1.0 - housing_width;
+                // Energy flow pattern
+                let energy_wave = (local_v * 15.0 - local_u * 10.0).sin() * 0.5 + 0.5;
+                let energy_intensity = (local_u * 20.0).sin() * 0.3 + 0.7;
                 
-                // Energy flow patterns
-                let time_factor = (u + v) * 5.0; // Simulate time-based animation
-                let energy_wave = ((local_v * 15.0 - time_factor).sin() * 0.5 + 0.5);
-                let energy_intensity = energy_wave * energy_wave; // Square for more dramatic effect
-                
-                // Connection nodes
-                let node_spacing = 0.25;
-                let node_v = (local_v / node_spacing) % 1.0;
-                let is_node = (node_v - 0.5).abs() < 0.15;
-                
-                if is_housing {
-                    // Dark conduit housing
-                    base_color.r *= 0.5;
-                    base_color.g *= 0.5;
-                    base_color.b *= 0.5;
-                } else if is_node {
-                    // Bright connection nodes
-                    base_color.r = (base_color.r + energy_intensity * 0.8).min(1.0);
-                    base_color.g = (base_color.g + energy_intensity * 0.4).min(1.0);
-                    base_color.b = (base_color.b + energy_intensity * 1.0).min(1.0);
-                } else {
-                    // Energy flow core with blue/white energy
-                    let core_width = 0.6;
-                    let core_dist = (local_u - 0.5).abs() / (core_width * 0.5);
-                    let core_intensity = (1.0 - core_dist).max(0.0);
-                    
-                    base_color.r = (base_color.r + core_intensity * energy_intensity * 0.6).min(1.0);
-                    base_color.g = (base_color.g + core_intensity * energy_intensity * 0.8).min(1.0);
-                    base_color.b = (base_color.b + core_intensity * energy_intensity * 1.0).min(1.0);
-                }
+                base_color.r = (base_color.r + energy_wave * 0.2 * energy_intensity).min(1.0);
+                base_color.g = (base_color.g + energy_wave * 0.3 * energy_intensity).min(1.0);
+                base_color.b = (base_color.b + energy_wave * 0.4 * energy_intensity).min(1.0);
             },
             _ => {} // No pattern for empty spaces
         }
@@ -323,7 +246,7 @@ impl Map {
         
         if has_light_strip {
             // Bright LED light strips - cyan/blue glow
-            let light_intensity = (((x + y) * 20.0).sin() * 0.3 + 0.7); // Subtle pulsing
+            let light_intensity = ((x + y) * 20.0).sin() * 0.3 + 0.7; // Subtle pulsing
             base_color.r = (base_color.r + light_intensity * 0.3).min(1.0);
             base_color.g = (base_color.g + light_intensity * 0.5).min(1.0);
             base_color.b = (base_color.b + light_intensity * 0.8).min(1.0);
@@ -398,7 +321,7 @@ impl Map {
                     // Standard lighting panels with LED arrays
                     if light_dist < 0.4 {
                         let light_intensity = (1.0 - light_dist * 2.5).max(0.0);
-                        let pulse = (((x + y) * 15.0).sin() * 0.1 + 0.9); // Subtle pulsing
+                        let pulse = ((x + y) * 15.0).sin() * 0.1 + 0.9; // Subtle pulsing
                         
                         base_color.r = (base_color.r + light_intensity * pulse * 0.6).min(1.0);
                         base_color.g = (base_color.g + light_intensity * pulse * 0.7).min(1.0);
@@ -445,7 +368,7 @@ impl Map {
                         let indicator_pattern = ((light_panel_x * 8.0).floor() as i32 + (light_panel_y * 8.0).floor() as i32) % 4;
                         if indicator_pattern == 0 {
                             // Status LED
-                            let led_brightness = (((x + y) * 12.0).sin() * 0.4 + 0.6);
+                            let led_brightness = ((x + y) * 12.0).sin() * 0.4 + 0.6;
                             base_color.r = (base_color.r + led_brightness * 0.2).min(1.0);
                             base_color.g = (base_color.g + led_brightness * 0.4).min(1.0);
                             base_color.b = (base_color.b + led_brightness * 0.1).min(1.0);
