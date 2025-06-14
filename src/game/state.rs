@@ -91,7 +91,7 @@ impl GameState {
     }
     
     /// Draw a minimap in the top-right corner during 3D mode
-    fn draw_minimap(&self) {
+    pub fn draw_minimap(&self) {
         let minimap_size = 150.0;
         let minimap_x = screen_width() - minimap_size - 10.0;
         let minimap_y = 10.0;

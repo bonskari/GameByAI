@@ -441,7 +441,7 @@ pub async fn run_visual_tests(test_duration: u64, auto_close: bool) {
             game_state.view_mode_3d = !game_state.view_mode_3d;
         }
         
-        // Check if test bot wants to exit
+        // Update test bot separately to avoid borrowing issues
         let should_exit = if let Some(test_bot) = &mut game_state.test_bot {
             !test_bot.update(&mut game_state.player, &game_state.map, delta_time)
         } else {
@@ -452,7 +452,7 @@ pub async fn run_visual_tests(test_duration: u64, auto_close: bool) {
             break;
         }
         
-        // Draw game
+        // Draw game (full 3D rendering + minimap)
         game_state.draw();
         
         // Draw test overlay
