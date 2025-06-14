@@ -10,9 +10,11 @@ pub mod map;
 pub mod player;
 pub mod state;
 pub mod renderer_3d;
+pub mod rendering;
+pub mod textures;
 
 // Re-export main types for convenience
 pub use map::Map;
 pub use player::Player;
 pub use state::GameState;
-// Modern3DRenderer re-export removed - not currently used 
+pub use rendering::Modern3DRenderer; 
