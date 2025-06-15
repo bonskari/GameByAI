@@ -9,7 +9,7 @@
 
 ---
 
-## �� Project Status: **🎉 Phase 4: Advanced AI & Testing Systems** 🔥
+## 📊 Project Status: **🎉 Phase 5: Complete ECS + A* Pathfinding System** 🔥
 
 ---
 
@@ -94,80 +94,116 @@
   - [x] ~~Wall collision detection~~
   - [x] ~~2D/3D view toggle~~
 
-### Phase 4: AI Pathfinding & Testing Systems ✅
-- [x] ~~**Advanced AI Pathfinding**~~
-  - [x] ~~A* pathfinding algorithm implementation~~
-  - [x] ~~8-directional movement support~~
-  - [x] ~~Wall detection and avoidance~~
-  - [x] ~~Diagonal movement with proper costs~~
-  - [x] ~~Optimal route calculation~~
+### Phase 4: Complete ECS Implementation ✅
+- [x] ~~**Entity Component System Architecture**~~
+  - [x] ~~Complete ECS implementation with 253 entities~~
+  - [x] ~~Transform, StaticRenderer, Collider components~~
+  - [x] ~~Player, Wall, Floor, Ceiling entity types~~
+  - [x] ~~Component-based rendering system~~
+  - [x] ~~ECS collision detection integration~~
 
-- [x] ~~**Visual Pathfinding Debugging**~~
+- [x] ~~**Texture System Integration**~~
+  - [x] ~~MaterialType enum with texture mapping~~
+  - [x] ~~PNG texture loading (tech_panel, hull_plating, etc.)~~
+  - [x] ~~Proper UV mapping and linear filtering~~
+  - [x] ~~ECS-based texture rendering~~
+
+- [x] ~~**Performance Optimization**~~
+  - [x] ~~120+ FPS with full ECS rendering~~
+  - [x] ~~Efficient component queries~~
+  - [x] ~~Grid-based collision detection~~
+
+### Phase 5: Hybrid ECS A* Pathfinding System ✅
+- [x] ~~**🆕 Reusable Pathfinder Component**~~
+  - [x] ~~Pathfinder component for any entity~~
+  - [x] ~~Target position and path storage~~
+  - [x] ~~Configurable movement and rotation speeds~~
+  - [x] ~~Path following and waypoint progression~~
+
+- [x] ~~**🆕 A* Pathfinding Algorithm**~~
+  - [x] ~~Complete A* implementation with binary heap~~
+  - [x] ~~Heuristic-based optimal pathfinding~~
+  - [x] ~~Obstacle avoidance and wall detection~~
+  - [x] ~~Grid-based navigation integration~~
+  - [x] ~~Diagonal movement with proper costs~~
+
+- [x] ~~**🆕 PathfindingSystem**~~
+  - [x] ~~System processes all entities with Pathfinder components~~
+  - [x] ~~Automatic path calculation and updates~~
+  - [x] ~~Integration with existing ECS architecture~~
+
+- [x] ~~**🆕 Enhanced TestBot**~~
+  - [x] ~~Hybrid TestBot + Pathfinder component model~~
+  - [x] ~~Intelligent waypoint navigation using A*~~
+  - [x] ~~Separation of concerns (waypoints vs pathfinding)~~
+  - [x] ~~Fixed waypoints to use valid empty spaces~~
+
+- [x] ~~**🆕 Visual Pathfinding Debugging**~~
   - [x] ~~Real-time minimap visualization~~
   - [x] ~~A* explored nodes display (blue areas)~~
   - [x] ~~Calculated path routes display (red areas)~~
   - [x] ~~Current target waypoint indicator (yellow circle)~~
-  - [x] ~~Player position and direction (green dot)~~
+  - [x] ~~Player/bot position and direction (green dot)~~
 
-- [x] ~~**Automated Testing Bot**~~
-  - [x] ~~AI bot with autonomous navigation~~
-  - [x] ~~64+ waypoint generation and navigation~~
-  - [x] ~~Stuck detection and recovery~~
-  - [x] ~~Progress tracking and reporting~~
-  - [x] ~~Configurable test duration~~
-
-- [x] ~~**Advanced Testing Framework**~~
-  - [x] ~~Visual test mode with full 3D rendering~~
-  - [x] ~~Real-time pathfinding visualization~~
-  - [x] ~~Automated bot navigation testing~~
-  - [x] ~~Performance monitoring~~
-  - [x] ~~Clean overlay system~~
+- [x] ~~**🆕 Advanced Testing Framework**~~
+  - [x] ~~Visual test mode with A* pathfinding~~
+  - [x] ~~Automated intelligent bot navigation~~
+  - [x] ~~Real-time pathfinding calculations~~
+  - [x] ~~Performance monitoring (120+ FPS maintained)~~
+  - [x] ~~Console output with pathfinding status~~
 
 ---
 
 ## 🚀 **NEXT IMMEDIATE TASKS** (Priority Order)
 
-### Phase 5: Game Mechanics & Content
+### Phase 6: Game Mechanics & Content
 1. **[ ] Enemy AI System**
-   - Basic enemy entities with pathfinding
-   - Line-of-sight detection
-   - Chase and patrol behaviors
-   - Integration with existing A* pathfinding
+   - Create Enemy component using existing Pathfinder system
+   - Line-of-sight detection using raycasting
+   - Chase and patrol behaviors with A* pathfinding
+   - Multiple enemy entities with different behaviors
 
 2. **[ ] Combat System**
-   - Player weapon system
-   - Shooting mechanics with raycasting
-   - Enemy health and damage
-   - Visual feedback for hits
+   - Player weapon system with raycasting
+   - Shooting mechanics with visual feedback
+   - Enemy health and damage system
+   - Hit detection and visual effects
 
 3. **[ ] Audio System**
    - Sound effects for movement, shooting, enemies
    - Ambient background music
-   - 3D positional audio
+   - 3D positional audio integration
+   - Audio component for ECS entities
 
 4. **[ ] Game State Management**
-   - Menu system
-   - Level progression
+   - Menu system with UI components
+   - Level progression and transitions
    - Score and statistics tracking
    - Save/load functionality
+
+5. **[ ] Enhanced AI Behaviors**
+   - Multiple enemy types with different AI patterns
+   - Group AI coordination using pathfinding
+   - Dynamic obstacle avoidance
+   - AI state machines (patrol, chase, attack, flee)
 
 ---
 
 ## 🗺️ **FUTURE PHASES** (Roadmap)
 
-### Phase 6: Polish & Content
-- [ ] Multiple levels/maps
-- [ ] Improved enemy AI behaviors
-- [ ] Power-ups and items
-- [ ] Enhanced graphics effects
-- [ ] Settings and configuration
-- [ ] Achievement system
+### Phase 7: Polish & Content
+- [ ] Multiple levels/maps with different layouts
+- [ ] Advanced enemy AI behaviors and coordination
+- [ ] Power-ups and items with ECS components
+- [ ] Enhanced graphics effects (particles, lighting)
+- [ ] Settings and configuration system
+- [ ] Achievement and progression system
 
-### Phase 7: Advanced Features
-- [ ] Multiplayer support
-- [ ] Level editor
-- [ ] Mod support
-- [ ] Advanced graphics (shadows, lighting)
+### Phase 8: Advanced Features
+- [ ] Multiplayer support with networked ECS
+- [ ] Level editor with pathfinding preview
+- [ ] Mod support and scripting system
+- [ ] Advanced graphics (shadows, dynamic lighting)
 - [ ] VR support exploration
 
 ---
@@ -183,12 +219,26 @@
 
 ### Current Features 🎮
 - **Full 3D Wolfenstein-style rendering**
-- **Advanced A* pathfinding with visual debugging**
-- **Automated AI bot testing**
+- **🆕 Hybrid ECS A* pathfinding system**
+- **🆕 Reusable Pathfinder component for any entity**
+- **🆕 Intelligent TestBot navigation** using A* algorithm
+- **Complete Entity Component System (253 entities)**
+- **Advanced pathfinding with visual debugging**
+- **Automated AI bot testing with optimal pathfinding**
 - **Real-time minimap with pathfinding visualization**
 - **Complete player movement system (WASD, mouse look, jumping)**
 - **Multi-textured walls with procedural generation**
 - **Integrated testing framework**
+- **120+ FPS performance** with full ECS + pathfinding
+
+### ECS Architecture Status 🏗️
+- **✅ Core ECS**: Entity, Component, World, System architecture
+- **✅ Game Components**: Transform, StaticRenderer, Collider, Player, etc.
+- **✅ 🆕 Pathfinding Components**: Pathfinder, TestBot hybrid model
+- **✅ 🆕 Pathfinding System**: A* algorithm with binary heap optimization
+- **✅ Rendering System**: Texture-based 3D rendering for all entities
+- **✅ Collision System**: Grid-based collision detection
+- **✅ Performance**: 120+ FPS with 253 entities + pathfinding
 
 ### Project Structure Rules 📋
 **MANDATORY - All AI assistants must follow these rules:**
@@ -207,13 +257,23 @@
    - `player.rs` - Player entity and movement
    - `map.rs` - Map system and collision detection
    - `state.rs` - Game state management
-3. **`src/testing/`**: Testing framework modules
+   - `ecs_state.rs` - ECS game state management
+3. **`src/ecs/`**: Entity Component System modules
+   - `mod.rs` - ECS module exports
+   - `entity.rs` - Entity management
+   - `component.rs` - Component storage
+   - `world.rs` - ECS world container
+   - `system.rs` - System management
+   - `components.rs` - Game-specific components
+   - `systems.rs` - Game-specific systems
+   - `🆕 pathfinding.rs` - A* pathfinding algorithms
+   - `query.rs` - Query system
+   - `resource.rs` - Resource management
+4. **`src/testing/`**: Testing framework modules
    - `mod.rs` - Testing module exports  
    - `runner.rs` - Test execution framework
    - `tests.rs` - Individual test implementations
-4. **`src/cli.rs`**: Command line interface definitions
-5. **`src/graphics/`**: Rendering and visual modules (future)
-6. **`src/physics/`**: Physics and collision systems (future)
+5. **`src/cli.rs`**: Command line interface definitions
 
 ### File Size Limits 📏
 - **main.rs**: Maximum 100 lines
@@ -230,9 +290,31 @@
 📁 Root/
 ├── 📁 src/                 # Source code
 │   ├── main.rs            # Main game entry point
-│   ├── player.rs          # Player logic (future)
-│   ├── map.rs             # Map system (future)
-│   └── raycast.rs         # Raycasting engine (future)
+│   ├── cli.rs             # Command line interface
+│   ├── 📁 game/           # Game logic modules
+│   │   ├── mod.rs         # Game module exports
+│   │   ├── state.rs       # Game state management
+│   │   ├── player.rs      # Player mechanics
+│   │   ├── map.rs         # Map system
+│   │   ├── input.rs       # Input handling
+│   │   ├── ecs_state.rs   # ECS game state
+│   │   └── 📁 rendering/  # 3D graphics engine
+│   ├── 📁 ecs/            # Entity Component System
+│   │   ├── mod.rs         # ECS module exports
+│   │   ├── entity.rs      # Entity management
+│   │   ├── component.rs   # Component storage
+│   │   ├── world.rs       # ECS world container
+│   │   ├── system.rs      # System management
+│   │   ├── components.rs  # Game-specific components
+│   │   ├── systems.rs     # Game-specific systems
+│   │   ├── 🆕 pathfinding.rs # A* pathfinding algorithms
+│   │   ├── query.rs       # Query system
+│   │   └── resource.rs    # Resource management
+│   └── 📁 testing/        # Testing framework
+│       ├── mod.rs         # Testing module exports
+│       ├── runner.rs      # Test execution framework
+│       ├── tests.rs       # Individual test implementations
+│       └── screenshot_validator.rs # Visual validation
 ├── 📁 assets/             # Game assets (textures, sounds)
 │   ├── textures/
 │   └── sounds/
@@ -276,6 +358,12 @@ cargo test -- --nocapture
 # Run specific test
 cargo test test_movement
 
+# Run visual test with A* pathfinding
+cargo run -- visual-test
+
+# Run visual test with custom duration
+cargo run -- visual-test -d 30
+
 # Build all platforms (future)
 cargo build --target x86_64-pc-windows-gnu
 cargo build --target x86_64-apple-darwin
@@ -313,6 +401,13 @@ cargo build --release
 - Good performance for 2D and simple 3D
 - Active development and community
 
+### Why Hybrid ECS + A* Pathfinding?
+- **Reusable Components**: Any entity can use pathfinding
+- **Performance**: Binary heap A* optimization
+- **Scalability**: Multiple entities can pathfind simultaneously
+- **Clean Architecture**: Separation of concerns (TestBot vs Pathfinder)
+- **Future-Proof**: Ready for enemy AI, NPCs, companions
+
 ### Distribution Strategy
 - Single executable approach (no installers)
 - Platform-specific folders (win64, future: macos, linux)
@@ -323,26 +418,31 @@ cargo build --release
 ## 🎮 **CURRENT GAME FEATURES**
 
 ### Working ✅
-- Graphical window with title
-- Text rendering
-- ESC to exit
-- Game loop with proper timing
-- Cross-platform executable
+- **Full 3D first-person rendering** with textured walls, floors, ceilings
+- **Complete ECS architecture** with 253 entities
+- **🆕 Hybrid A* pathfinding system** with reusable components
+- **🆕 Intelligent TestBot navigation** using A* algorithm
+- **Advanced visual debugging** with real-time pathfinding visualization
+- **Player movement system** (WASD, mouse look, jumping)
+- **Collision detection** and physics
+- **Texture system** with material-based rendering
+- **Integrated testing framework** with automated bot navigation
+- **120+ FPS performance** with full ECS + pathfinding
 
 ### In Progress 🔄
-- About to start: Player movement system
+- Ready to start: Enemy AI system using existing pathfinding
 
 ### Planned ⏳
-- 2D map system
-- Raycasting 3D renderer
-- Game mechanics (shooting, enemies)
-- Audio system
+- Combat system with raycasting
+- Audio system integration
+- Game state management
+- Multiple enemy types with AI behaviors
 
 ---
 
 ## 📝 **SESSION LOG**
 
-### Session 1 (Today)
+### Session 1-4 (Previous)
 1. Started with C++ console hello world
 2. Discovered console output issues
 3. Switched to Rust + macroquad approach
@@ -350,23 +450,40 @@ cargo build --release
 5. Set up professional build system
 6. Created distribution structure
 7. **Established comprehensive documentation system**
+8. Implemented player movement and 2D map system
+9. Built advanced 3D raycasting engine
+10. Created complete ECS implementation
+11. Added texture system and performance optimization
+
+### Session 5 (Latest) - Hybrid ECS A* Pathfinding
+1. **🆕 Implemented reusable Pathfinder component**
+2. **🆕 Created complete A* pathfinding algorithm with binary heap**
+3. **🆕 Built PathfindingSystem for processing all pathfinding entities**
+4. **🆕 Enhanced TestBot with hybrid TestBot + Pathfinder model**
+5. **🆕 Fixed waypoints to use valid empty spaces**
+6. **🆕 Added real-time pathfinding visualization**
+7. **🆕 Achieved 120+ FPS with full ECS + pathfinding**
+8. **🆕 Created foundation for future AI entities**
 
 ### Next Session Goals
-- Implement basic player movement (WASD)
-- Add simple 2D map display
-- Get player dot moving around screen
+- Implement Enemy component using existing Pathfinder system
+- Add line-of-sight detection with raycasting
+- Create basic chase and patrol AI behaviors
+- Test multiple AI entities with pathfinding
 
 ---
 
 ## 🚨 **KNOWN ISSUES**
-- None currently! Everything working smoothly.
+- None currently! Hybrid ECS A* pathfinding system working perfectly.
 
 ---
 
 ## 🔗 **Resources & References**
 - [macroquad documentation](https://docs.rs/macroquad/)
 - [Rust Book](https://doc.rust-lang.org/book/)
-- [Ray-Casting Tutorial](https://lodev.org/cgtutor/raycasting.html) (for Phase 3)
+- [A* Pathfinding Algorithm](https://en.wikipedia.org/wiki/A*_search_algorithm)
+- [ECS Architecture Patterns](https://github.com/SanderMertens/ecs-faq)
+- [Ray-Casting Tutorial](https://lodev.org/cgtutor/raycasting.html)
 - [GitHub Repo](https://github.com/bonskari/GameByAI) 
 
 # Development Rules

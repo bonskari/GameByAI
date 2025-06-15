@@ -6,7 +6,7 @@ A 3D first-person game created with AI assistance using **Rust** and **macroquad
 
 This project creates a classic first-person 3D gameplay experience using modern Rust development with the macroquad game framework. The development process is AI-assisted, combining learning with practical game development.
 
-**🆕 NEW: Complete ECS Implementation** - The game now features a fully functional Entity Component System with texture rendering, collision detection, and excellent performance (116-121 FPS).
+**🆕 NEW: Hybrid ECS A* Pathfinding System** - The game now features a complete Entity Component System with intelligent A* pathfinding, reusable components, and excellent performance (120+ FPS).
 
 ## 🚀 Getting Started
 
@@ -28,17 +28,20 @@ cargo run
 
 # Run the visual test mode with AI pathfinding
 cargo run -- visual-test
+
+# Run visual test with custom duration
+cargo run -- visual-test -d 30
 ```
 
 ## 🎮 Game Features
 
 - **✅ Full 3D first-person rendering** with textured walls, floors, and ceilings
 - **✅ Complete ECS architecture** with 253 entities (52 walls, 100 floors, 100 ceilings)
+- **✅ Hybrid ECS A* pathfinding system** with reusable Pathfinder component
+- **✅ Intelligent TestBot navigation** using A* algorithm for optimal pathfinding
 - **✅ Texture-based rendering** with proper material lookup system
 - **✅ ECS collision detection** working seamlessly with grid-based detection
-- **✅ Hybrid Legacy/ECS system** with both architectures coexisting
-- **✅ Excellent performance** maintaining 116-121 FPS consistently
-- **✅ Advanced pathfinding system** with A* algorithm and visual debugging
+- **✅ Excellent performance** maintaining 120+ FPS consistently
 - **✅ Modern 3D graphics** with procedural textures and lighting
 - **✅ Integrated testing system** with automated bot navigation
 - **✅ Real-time minimap** with pathfinding visualization
@@ -48,7 +51,7 @@ cargo run -- visual-test
 
 ## 🏗️ ECS Architecture
 
-The game features a **complete Entity Component System (ECS)** implementation:
+The game features a **complete Entity Component System (ECS)** implementation with hybrid pathfinding:
 
 ### Core ECS Components
 - **Transform** - Position, rotation, and scale for all entities
@@ -57,12 +60,21 @@ The game features a **complete Entity Component System (ECS)** implementation:
 - **Player** - Player-specific data and settings
 - **Wall/Floor/Ceiling** - Level geometry components with texture mapping
 - **MaterialType** - Texture material system (Wall, Floor, Ceiling variants)
+- **🆕 Pathfinder** - Reusable A* pathfinding component for any entity
+- **🆕 TestBot** - Automated testing bot with waypoint navigation
 
-### ECS Architecture
-- **Direct Component Queries** - Efficient direct world queries for game logic
+### ECS Systems
 - **Rendering System** - Handles texture lookup and 3D rendering for 253 entities
 - **Collision Detection** - Grid-based collision using entity component queries
+- **🆕 PathfindingSystem** - Processes all entities with Pathfinder components
 - **Physics Integration** - Gravity, jumping, and physics via direct component access
+
+### Hybrid Pathfinding Model
+- **TestBot Component**: Manages high-level behavior (waypoints, test duration)
+- **Pathfinder Component**: Handles low-level pathfinding (A* algorithm, path following)
+- **Reusable Design**: Any entity can add a Pathfinder component for intelligent navigation
+- **A* Algorithm**: Proper heuristic-based pathfinding with obstacle avoidance
+- **Performance Optimized**: Binary heap implementation for efficient pathfinding
 
 ### Current ECS Implementation Status
 - **✅ Player Entity**: Fully migrated to ECS with Transform + Player components
@@ -70,8 +82,8 @@ The game features a **complete Entity Component System (ECS)** implementation:
 - **✅ ECS Rendering System**: StaticRenderer actively rendering all ECS entities
 - **✅ Texture System**: Complete material-based texture rendering via ECS
 - **✅ ECS Collision Detection**: Grid-based collision working perfectly
-- **✅ Performance**: Excellent 116-121 FPS with full ECS rendering
-- **✅ Hybrid System**: Legacy and ECS coexisting seamlessly
+- **✅ 🆕 Hybrid Pathfinding**: TestBot + Pathfinder components working together
+- **✅ Performance**: Excellent 120+ FPS with full ECS rendering and pathfinding
 
 ## 🎨 Texture System
 
@@ -93,20 +105,35 @@ The game features a complete texture loading and rendering system:
 
 ## 🧠 AI Pathfinding System
 
-The game features an advanced AI pathfinding system with:
-- **A* pathfinding algorithm** for optimal route finding
-- **Wall detection and avoidance** 
-- **Visual debugging on minimap** showing:
+The game features an advanced hybrid ECS pathfinding system:
+
+### A* Pathfinding Algorithm
+- **Heuristic-based pathfinding** for optimal route calculation
+- **Binary heap optimization** for efficient node processing
+- **Obstacle avoidance** with proper wall detection
+- **Grid-based navigation** integrated with map system
+- **Diagonal movement support** with proper cost calculation
+
+### Pathfinder Component (Reusable)
+- **Target position tracking** for navigation goals
+- **Path calculation and storage** for smooth movement
+- **Movement and rotation speeds** configurable per entity
+- **Path following logic** with waypoint progression
+- **Stuck detection and recovery** for robust navigation
+
+### Visual Debugging
+- **Real-time minimap visualization** showing:
   - Blue areas: A* explored nodes (search area)
   - Red areas: Actual pathfinding routes
   - Yellow circle: Current target waypoint
-  - Green dot: Player position and direction
+  - Green dot: Player/bot position and direction
 
 ## 🛠️ Technologies Used
 
 - **Rust** - Systems programming language
 - **macroquad** - Simple and easy to use 2D/3D game framework
 - **Custom ECS** - Complete Entity Component System implementation
+- **A* Pathfinding** - Intelligent navigation with binary heap optimization
 - **Texture Loading** - PNG texture support with material system
 - **Grid-based Collision** - Efficient spatial collision detection
 - **Cargo** - Rust package manager and build system
@@ -133,15 +160,17 @@ The game features an advanced AI pathfinding system with:
 │   │   ├── world.rs         # ECS world container
 │   │   ├── system.rs        # System management
 │   │   ├── components.rs    # Game-specific components
-│   │   ├── query.rs         # Query system (future)
+│   │   ├── systems.rs       # Game-specific systems
+│   │   ├── pathfinding.rs   # 🆕 A* pathfinding algorithms
+│   │   ├── query.rs         # Query system
 │   │   └── resource.rs      # Resource management
 │   └── testing/
 │       ├── mod.rs           # Testing module
-│       ├── visual_tests.rs  # AI bot and pathfinding
 │       ├── tests.rs         # Unit tests
 │       ├── runner.rs        # Test runner
 │       └── screenshot_validator.rs # Visual validation
 ├── cpp_backup/              # Previous C++ implementation
+├── scripts/                 # Build and utility scripts
 ├── Cargo.toml              # Rust dependencies and metadata
 ├── .gitignore              # Git ignore patterns
 └── README.md               # This file
@@ -155,14 +184,15 @@ The game features an advanced AI pathfinding system with:
 - ✅ Advanced 3D graphics engine with procedural textures
 - ✅ Complete player movement system (WASD, mouse look, jumping)
 - ✅ Level loading and rendering system
-- ✅ AI pathfinding with A* algorithm
+- ✅ **🆕 Hybrid ECS A* pathfinding system**
+- ✅ **🆕 Reusable Pathfinder component for any entity**
+- ✅ **🆕 Intelligent TestBot with A* navigation**
 - ✅ Visual debugging and testing system
 - ✅ Minimap with real-time pathfinding visualization
 - ✅ Automated testing with AI bot navigation
 - ✅ **Entity Component System (ECS) implementation**
-- ✅ **Hybrid architecture with runtime switching**
 - ✅ **Centralized input system**
-- ✅ **Full feature parity between Legacy and ECS systems**
+- ✅ **Full ECS architecture with pathfinding integration**
 
 ## 🎮 Controls
 
@@ -171,7 +201,6 @@ The game features an advanced AI pathfinding system with:
 - **Space** - Jump
 - **Tab** - Toggle between 3D and 2D view
 - **M** - Toggle mouse capture
-- **E** - **Switch between Legacy ↔ ECS systems** (NEW!)
 - **Esc** - Exit game
 
 ## 🧪 Testing
@@ -179,18 +208,19 @@ The game features an advanced AI pathfinding system with:
 The project includes an advanced automated visual test system with AI pathfinding:
 
 ### Visual Test Mode
-The visual test mode features an AI bot that automatically navigates through the level:
+The visual test mode features an AI bot that automatically navigates through the level using A* pathfinding:
 ```bash
 # Run the visual test with AI pathfinding
 cargo run -- visual-test
 
 # Run with custom duration (default: 15 seconds)
 cargo run -- visual-test --duration 30
+cargo run -- visual-test -d 30
 ```
 
 The visual test will:
 - **Generate optimal paths** using A* pathfinding algorithm
-- **Navigate through 64+ waypoints** automatically
+- **Navigate through waypoints** automatically with intelligent pathfinding
 - **Visualize pathfinding** on the minimap in real-time
 - **Test wall collision detection** and avoidance
 - **Display progress** with overlay information
@@ -204,20 +234,21 @@ The visual test will:
   - Yellow circle: Current target waypoint
   - Green dot: AI bot position and direction
 - **Overlay (top-left)**: Progress information and test status
-- **System Indicator**: Shows whether Legacy or ECS system is active
+- **Console Output**: Real-time pathfinding calculations and navigation updates
 
-## 🏛️ Architecture Comparison
+## 🏛️ Architecture Highlights
 
-| Feature | Legacy System | ECS System |
-|---------|---------------|------------|
-| **Performance** | 120+ FPS | 120+ FPS |
-| **Movement** | ✅ WASD + Mouse | ✅ WASD + Mouse |
-| **Jumping** | ✅ Physics + Gravity | ✅ Physics + Gravity |
-| **Collision** | ✅ Wall Detection | ✅ Wall Detection |
-| **Code Structure** | Monolithic | Component-based |
-| **Extensibility** | Limited | High |
-| **Memory Usage** | Lower | Slightly Higher |
-| **Runtime Switch** | N/A | ✅ Press 'E' |
+### ECS + A* Pathfinding Integration
+- **Modular Design**: Pathfinding is a reusable component system
+- **High Performance**: 120+ FPS with full pathfinding calculations
+- **Scalable**: Any number of entities can use pathfinding simultaneously
+- **Intelligent Navigation**: Proper obstacle avoidance and optimal routing
+
+### Component Separation
+- **TestBot**: High-level waypoint management and test behavior
+- **Pathfinder**: Low-level A* pathfinding and movement execution
+- **Transform**: Position and rotation data
+- **Clean Architecture**: Each component has a single responsibility
 
 ## 🤝 Contributing
 
