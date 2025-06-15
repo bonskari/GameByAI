@@ -229,7 +229,7 @@ impl GameState {
                 speed: 2.0,
                 turn_speed: 3.0,
                 radius: 0.3,
-                mouse_sensitivity: 0.18,
+                mouse_sensitivity: 1.0,  // Will be dynamically calculated by InputHandler
                 vertical_velocity: 0.0,
                 jump_strength: 4.5,
                 gravity: 12.0,

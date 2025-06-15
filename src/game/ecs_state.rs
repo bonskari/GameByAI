@@ -341,7 +341,7 @@ impl EcsGameState {
     /// This method is kept for compatibility but now delegates to update_with_input
     pub fn update(&mut self, delta_time: f32) {
         // Create a temporary input handler to capture input for legacy compatibility
-        let input_handler = super::input::InputHandler::new();
+        let mut input_handler = super::input::InputHandler::new();
         let input = input_handler.capture_input();
         self.update_with_input(delta_time, &input);
     }

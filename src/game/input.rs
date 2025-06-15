@@ -28,7 +28,7 @@ pub struct PlayerInput {
 
 /// Input handler that captures and processes all player inputs
 pub struct InputHandler {
-    mouse_sensitivity: f32,
+    base_mouse_sensitivity: f32,  // User-configurable base sensitivity
     move_speed: f32,
     turn_speed: f32,
 }
@@ -37,16 +37,50 @@ impl InputHandler {
     /// Create a new input handler with default settings
     pub fn new() -> Self {
         Self {
-            mouse_sensitivity: 0.18,
+            base_mouse_sensitivity: 5.0,  // Default sensitivity of 5.0 (5x more sensitive than original)
             move_speed: 2.0,
             turn_speed: 3.0,
         }
     }
     
+    /// Calculate dynamic mouse sensitivity based on screen resolution
+    /// This ensures consistent feel across different resolutions
+    fn calculate_mouse_sensitivity(&self) -> f32 {
+        // Reference resolution (what the original sensitivity was tuned for)
+        const REFERENCE_WIDTH: f32 = 1024.0;
+        const REFERENCE_HEIGHT: f32 = 768.0;
+        const REFERENCE_DIAGONAL: f32 = 1280.0; // sqrt(1024² + 768²)
+        
+        // Current screen resolution
+        let current_width = screen_width();
+        let current_height = screen_height();
+        let current_diagonal = (current_width * current_width + current_height * current_height).sqrt();
+        
+        // Scale factor based on diagonal resolution (accounts for both width and height changes)
+        let scale_factor = REFERENCE_DIAGONAL / current_diagonal;
+        
+        // Apply base sensitivity with resolution scaling
+        let dynamic_sensitivity = self.base_mouse_sensitivity * scale_factor * 0.18; // 0.18 was the original tuned value
+        
+        dynamic_sensitivity
+    }
+    
     /// Capture current frame's input state
-    pub fn capture_input(&self) -> PlayerInput {
+    pub fn capture_input(&mut self) -> PlayerInput {
+        // Handle mouse sensitivity adjustment
+        if is_key_pressed(KeyCode::Equal) || is_key_pressed(KeyCode::KpAdd) {
+            self.base_mouse_sensitivity = (self.base_mouse_sensitivity + 0.2).min(10.0);  // Max 10.0
+            println!("🖱️ Mouse sensitivity increased to {:.1} (effective: {:.4})", 
+                    self.base_mouse_sensitivity, self.calculate_mouse_sensitivity());
+        }
+        if is_key_pressed(KeyCode::Minus) || is_key_pressed(KeyCode::KpSubtract) {
+            self.base_mouse_sensitivity = (self.base_mouse_sensitivity - 0.2).max(0.1);  // Min 0.1
+            println!("🖱️ Mouse sensitivity decreased to {:.1} (effective: {:.4})", 
+                    self.base_mouse_sensitivity, self.calculate_mouse_sensitivity());
+        }
+        
         let mut input = PlayerInput {
-            mouse_sensitivity: self.mouse_sensitivity,
+            mouse_sensitivity: self.calculate_mouse_sensitivity(),  // Dynamic calculation
             move_speed: self.move_speed,
             turn_speed: self.turn_speed,
             ..Default::default()
@@ -78,7 +112,16 @@ impl InputHandler {
     
     /// Update input settings
     pub fn set_mouse_sensitivity(&mut self, sensitivity: f32) {
-        self.mouse_sensitivity = sensitivity;
+        self.base_mouse_sensitivity = sensitivity;
+        println!("🖱️ Base mouse sensitivity set to {:.2}", sensitivity);
+    }
+    
+    pub fn get_mouse_sensitivity(&self) -> f32 {
+        self.base_mouse_sensitivity
+    }
+    
+    pub fn get_current_effective_sensitivity(&self) -> f32 {
+        self.calculate_mouse_sensitivity()
     }
     
     pub fn set_move_speed(&mut self, speed: f32) {

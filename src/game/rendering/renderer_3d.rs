@@ -22,6 +22,7 @@ impl Modern3DRenderer {
             position: vec3(1.5, 1.0, 1.5),
             up: vec3(0.0, 1.0, 0.0),
             target: vec3(2.0, 1.0, 1.5),
+            fovy: 75.0,  // 75 degrees FOV for a balanced gaming experience
             ..Default::default()
         };
 

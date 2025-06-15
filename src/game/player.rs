@@ -37,7 +37,7 @@ impl Player {
             speed: 2.0,
             turn_speed: 3.0,
             radius: 0.3,
-            mouse_sensitivity: 0.18, // Original responsive sensitivity restored  
+            mouse_sensitivity: 1.0, // Will be dynamically calculated by InputHandler  
             // Jumping physics
             vertical_velocity: 0.0,
             jump_strength: 4.5,    // Strong enough jump for responsive feel
@@ -146,7 +146,7 @@ impl Player {
     /// This method is kept for compatibility but now delegates to update_with_input
     pub fn update(&mut self, dt: f32, map: &Map) {
         // Create a temporary input handler to capture input for legacy compatibility
-        let input_handler = super::input::InputHandler::new();
+        let mut input_handler = super::input::InputHandler::new();
         let input = input_handler.capture_input();
         self.update_with_input(dt, map, &input);
     }

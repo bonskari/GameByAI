@@ -14,6 +14,18 @@ mod ecs;
 use cli::{Cli, Commands};
 use game::GameState;
 
+/// Window configuration for fullscreen mode with native resolution
+fn window_conf() -> Conf {
+    Conf {
+        window_title: "GameByAI - 3D Game Engine".to_owned(),
+        fullscreen: true,
+        window_width: 0,  // 0 means use native resolution
+        window_height: 0, // 0 means use native resolution
+        window_resizable: false,
+        ..Default::default()
+    }
+}
+
 /// Initialize a new game state with all necessary setup
 async fn initialize_game() -> GameState {
     let mut game_state = GameState::new();
@@ -124,7 +136,7 @@ pub async fn run_visual_tests(test_duration: u64, auto_close: bool) {
 }
 
 /// Main entry point
-#[macroquad::main("GameByAI - 3D Game Engine")]
+#[macroquad::main(window_conf)]
 async fn main() {
     let cli = Cli::parse();
     
