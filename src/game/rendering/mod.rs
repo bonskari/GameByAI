@@ -11,5 +11,4 @@ pub mod vertex_data;
 
 // Re-export main types
 pub use renderer_3d::Modern3DRenderer;
-pub use materials::MaterialManager;
-pub use vertex_data::{Vertex, WallMeshData}; 
+pub use materials::MaterialManager; 

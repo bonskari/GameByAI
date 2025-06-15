@@ -9,7 +9,6 @@
 pub mod map;
 pub mod player;
 pub mod state;
-pub mod renderer_3d;
 pub mod rendering;
 pub mod textures;
 

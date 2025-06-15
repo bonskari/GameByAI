@@ -9,6 +9,7 @@ use clap::Parser;
 mod cli;
 mod game;
 mod testing;
+mod ecs;
 
 use cli::{Cli, Commands};
 use game::GameState;

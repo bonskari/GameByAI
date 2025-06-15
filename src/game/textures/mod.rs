@@ -12,7 +12,4 @@ pub mod generator;
 pub mod cache;
 
 // Re-export main types
-pub use types::{TextureType, TextureConfig, LoadedTexture, TextureResult, TextureError};
-pub use loader::TextureLoader;
-pub use generator::ProceduralGenerator;
-pub use cache::TextureCache; 
+pub use types::{TextureType, LoadedTexture, TextureResult, TextureError}; 

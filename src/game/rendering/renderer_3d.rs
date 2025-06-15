@@ -3,15 +3,22 @@
 use macroquad::prelude::*;
 use crate::game::rendering::MaterialManager;
 use crate::game::{Map, Player};
+use crate::game::map::WallType;
+use std::collections::HashMap;
 
 /// Modern 3D renderer with clean separation of concerns
 pub struct Modern3DRenderer {
     camera: Camera3D,
     material_manager: MaterialManager,
-    // Mesh data will be stored here
-    wall_mesh: Option<Mesh>,
+    // Mesh data storage
+    wall_meshes: HashMap<WallType, Mesh>,
     floor_mesh: Option<Mesh>,
     ceiling_mesh: Option<Mesh>,
+    needs_rebuild: bool,
+    // Texture storage
+    wall_textures: HashMap<WallType, Texture2D>,
+    floor_texture: Option<Texture2D>,
+    ceiling_texture: Option<Texture2D>,
 }
 
 impl Modern3DRenderer {
@@ -27,15 +34,241 @@ impl Modern3DRenderer {
         Self {
             camera,
             material_manager: MaterialManager::new(),
-            wall_mesh: None,
+            wall_meshes: HashMap::new(),
             floor_mesh: None,
             ceiling_mesh: None,
+            needs_rebuild: true,
+            wall_textures: HashMap::new(),
+            floor_texture: None,
+            ceiling_texture: None,
+        }
+    }
+
+    /// Load textures from disk
+    pub async fn load_textures(&mut self) {
+        println!("Loading textures from disk...");
+        
+        // Try to load wall textures
+        if let Ok(texture) = load_texture("assets/textures/tech_panel.png").await {
+            self.wall_textures.insert(WallType::TechPanel, texture);
+            println!("Loaded tech_panel.png");
+        }
+        if let Ok(texture) = load_texture("assets/textures/hull_plating.png").await {
+            self.wall_textures.insert(WallType::HullPlating, texture);
+            println!("Loaded hull_plating.png");
+        }
+        if let Ok(texture) = load_texture("assets/textures/control_system.png").await {
+            self.wall_textures.insert(WallType::ControlSystem, texture);
+            println!("Loaded control_system.png");
+        }
+        if let Ok(texture) = load_texture("assets/textures/energy_conduit.png").await {
+            self.wall_textures.insert(WallType::EnergyConduit, texture);
+            println!("Loaded energy_conduit.png");
+        }
+        
+        // Try to load floor and ceiling textures
+        if let Ok(mut texture) = load_texture("assets/textures/floor.png").await {
+            texture.set_filter(FilterMode::Linear);
+            self.floor_texture = Some(texture);
+            println!("Loaded floor.png with linear filtering");
+        }
+        if let Ok(texture) = load_texture("assets/textures/ceiling.png").await {
+            self.ceiling_texture = Some(texture);
+            println!("Loaded ceiling.png");
+        }
+        
+        println!("Texture loading complete.");
+    }
+
+    /// Build geometry from map data
+    pub fn build_geometry(&mut self, map: &Map) {
+        if !self.needs_rebuild {
+            return;
+        }
+
+        self.wall_meshes.clear();
+        let wall_height = 2.0;
+
+        let mut mesh_data_map: HashMap<WallType, (Vec<Vertex>, Vec<u16>)> = HashMap::new();
+
+        // Build wall meshes
+        for y in 0..map.height {
+            for x in 0..map.width {
+                if map.is_wall(x as i32, y as i32) {
+                    let wall_type = map.get_wall_type(x as i32, y as i32);
+                    let (vertices, indices) = mesh_data_map.entry(wall_type).or_insert_with(|| (Vec::new(), Vec::new()));
+                    Self::add_wall_cube(vertices, indices, x, y, wall_height);
+                }
+            }
+        }
+
+        // Convert mesh data to actual meshes
+        for (wall_type, (vertices, indices)) in mesh_data_map {
+            let texture = self.wall_textures.get(&wall_type).cloned();
+            self.wall_meshes.insert(wall_type, Mesh {
+                vertices,
+                indices,
+                texture,
+            });
+        }
+
+        // Build floor and ceiling meshes
+        self.floor_mesh = Some(self.create_floor_mesh(map));
+        self.ceiling_mesh = Some(self.create_ceiling_mesh(map));
+
+        self.needs_rebuild = false;
+        println!("3D geometry rebuilt successfully with mesh system.");
+    }
+
+    /// Add a simple wall cube to the mesh
+    fn add_wall_cube(vertices: &mut Vec<Vertex>, indices: &mut Vec<u16>, x: usize, y: usize, height: f32) {
+        let fx = x as f32;
+        let fy = y as f32;
+        let base = vertices.len() as u16;
+        
+        // Simple cube vertices (8 corners)
+        let cube_vertices = [
+            // Bottom face (y=0)
+            vec3(fx, 0.0, fy),         // 0
+            vec3(fx + 1.0, 0.0, fy),   // 1
+            vec3(fx + 1.0, 0.0, fy + 1.0), // 2
+            vec3(fx, 0.0, fy + 1.0),   // 3
+            // Top face (y=height)
+            vec3(fx, height, fy),      // 4
+            vec3(fx + 1.0, height, fy), // 5
+            vec3(fx + 1.0, height, fy + 1.0), // 6
+            vec3(fx, height, fy + 1.0), // 7
+        ];
+        
+        // Add vertices with simple UV mapping
+        for (i, pos) in cube_vertices.iter().enumerate() {
+            vertices.push(Vertex {
+                position: *pos,
+                uv: vec2((i % 2) as f32, (i / 4) as f32), // Simple UV
+                color: [255, 255, 255, 255],
+                normal: vec4(0.0, 1.0, 0.0, 0.0), // Simple normal
+            });
+        }
+        
+        // Cube face indices (12 triangles, 6 faces)
+        let cube_indices = [
+            // Bottom face
+            0, 2, 1, 0, 3, 2,
+            // Top face  
+            4, 5, 6, 4, 6, 7,
+            // Front face
+            0, 1, 5, 0, 5, 4,
+            // Back face
+            2, 3, 7, 2, 7, 6,
+            // Left face
+            3, 0, 4, 3, 4, 7,
+            // Right face
+            1, 2, 6, 1, 6, 5,
+        ];
+        
+        // Add indices with base offset
+        for &idx in &cube_indices {
+            indices.push(base + idx);
+        }
+    }
+    
+
+
+    /// Create floor mesh
+    fn create_floor_mesh(&self, map: &Map) -> Mesh {
+        let width = map.width as f32;
+        let height = map.height as f32;
+        
+        // Create floor slightly below ground level to avoid Z-fighting
+        let floor_y = -0.01;
+        
+        let vertices = vec![
+            Vertex {
+                position: vec3(0.0, floor_y, 0.0),
+                uv: vec2(0.0, 0.0),
+                color: [255, 255, 255, 255],
+                normal: vec4(0.0, 1.0, 0.0, 0.0),
+            },
+            Vertex {
+                position: vec3(width, floor_y, 0.0),
+                uv: vec2(width, 0.0), // Use same approach as walls - direct mapping
+                color: [255, 255, 255, 255],
+                normal: vec4(0.0, 1.0, 0.0, 0.0),
+            },
+            Vertex {
+                position: vec3(width, floor_y, height),
+                uv: vec2(width, height), // Use same approach as walls - direct mapping
+                color: [255, 255, 255, 255],
+                normal: vec4(0.0, 1.0, 0.0, 0.0),
+            },
+            Vertex {
+                position: vec3(0.0, floor_y, height),
+                uv: vec2(0.0, height), // Use same approach as walls - direct mapping
+                color: [255, 255, 255, 255],
+                normal: vec4(0.0, 1.0, 0.0, 0.0),
+            },
+        ];
+        // Ensure correct triangle winding for upward-facing floor
+        let indices = vec![0, 1, 2, 0, 2, 3];
+        
+        let mesh = Mesh { 
+            vertices, 
+            indices, 
+            texture: self.floor_texture.clone() 
+        };
+        
+        if self.floor_texture.is_some() {
+            println!("Floor mesh created with texture applied");
+        } else {
+            println!("Floor mesh created WITHOUT texture - texture not loaded");
+        }
+        
+        mesh
+    }
+
+    /// Create ceiling mesh
+    fn create_ceiling_mesh(&self, map: &Map) -> Mesh {
+        let ceiling_height = 2.0;
+        let width = map.width as f32;
+        let height = map.height as f32;
+        
+        let vertices = vec![
+            Vertex {
+                position: vec3(0.0, ceiling_height, 0.0),
+                uv: vec2(0.0, 0.0),
+                color: [255, 255, 255, 255],
+                normal: vec4(0.0, -1.0, 0.0, 0.0),
+            },
+            Vertex {
+                position: vec3(width, ceiling_height, 0.0),
+                uv: vec2(width, 0.0),
+                color: [255, 255, 255, 255],
+                normal: vec4(0.0, -1.0, 0.0, 0.0),
+            },
+            Vertex {
+                position: vec3(width, ceiling_height, height),
+                uv: vec2(width, height),
+                color: [255, 255, 255, 255],
+                normal: vec4(0.0, -1.0, 0.0, 0.0),
+            },
+            Vertex {
+                position: vec3(0.0, ceiling_height, height),
+                uv: vec2(0.0, height),
+                color: [255, 255, 255, 255],
+                normal: vec4(0.0, -1.0, 0.0, 0.0),
+            },
+        ];
+        let indices = vec![0, 2, 1, 0, 3, 2]; // Reverse winding for ceiling
+        
+        Mesh { 
+            vertices, 
+            indices, 
+            texture: self.ceiling_texture.clone() 
         }
     }
 
     /// Update camera based on player position
     pub fn update_camera(&mut self, player: &Player) {
-        // Keep the existing camera logic for now
         self.camera.position = vec3(player.x, player.z, player.y);
         let yaw = player.rotation;
         let pitch = player.pitch;
@@ -47,19 +280,31 @@ impl Modern3DRenderer {
         self.camera.target = self.camera.position + vec3(look_x, look_y, look_z);
     }
 
-    /// Render the 3D scene
-    pub fn render(&mut self, _map: &Map, player: &Player) {
+    /// Render the 3D scene using mesh system
+    pub fn render(&mut self, map: &Map, player: &Player) {
+        // Build geometry if needed
+        self.build_geometry(map);
+        
         self.update_camera(player);
-        
         set_camera(&self.camera);
+        clear_background(DARKGRAY);
+
+        // Render floor mesh
+        if let Some(floor_mesh) = &self.floor_mesh {
+            draw_mesh(floor_mesh);
+        }
+
+        // Render wall meshes
+        for (_wall_type, mesh) in &self.wall_meshes {
+            draw_mesh(mesh);
+        }
+
+        // Render ceiling mesh
+        if let Some(ceiling_mesh) = &self.ceiling_mesh {
+            draw_mesh(ceiling_mesh);
+        }
         
-        // For now, just clear the screen
-        // The actual rendering will be implemented after we migrate the existing renderer
-        clear_background(BLACK);
-        
-        // Placeholder text
         set_default_camera();
-        draw_text("New Clean Renderer (Placeholder)", 10.0, 30.0, 20.0, WHITE);
     }
 
     /// Get mutable reference to material manager
@@ -70,5 +315,10 @@ impl Modern3DRenderer {
     /// Get reference to material manager
     pub fn material_manager(&self) -> &MaterialManager {
         &self.material_manager
+    }
+
+    /// Mark geometry as needing rebuild
+    pub fn mark_dirty(&mut self) {
+        self.needs_rebuild = true;
     }
 } 

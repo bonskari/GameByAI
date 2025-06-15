@@ -1,6 +1,7 @@
 use macroquad::prelude::*;
 use std::time::Instant;
-use super::{map::Map, player::Player, renderer_3d::Modern3DRenderer};
+use super::{map::Map, player::Player};
+use super::rendering::Modern3DRenderer;
 use crate::testing::visual_tests::VisualTestBot;
 
 /// Overall game state for testing and gameplay
