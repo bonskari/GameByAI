@@ -1,4 +1,4 @@
-//! Game-specific components for the Wolfenstein ECS
+//! Game-specific components for the GameByAI ECS
 
 use macroquad::prelude::*;
 use crate::ecs::Component;

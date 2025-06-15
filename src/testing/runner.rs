@@ -19,7 +19,7 @@ pub struct TestRunner {
 impl TestRunner {
     /// Create a new test runner
     pub fn new(verbose: bool, timeout: u64) -> Self {
-        println!("=== WOLFENSTEIN BY AI - INTEGRATED TEST SYSTEM ===");
+        println!("=== GAMEBYAI - INTEGRATED TEST SYSTEM ===");
         println!("Timeout: {}s per test | Verbose: {}", timeout, verbose);
         println!("Platform: {} | Graphics: macroquad", std::env::consts::OS);
         println!("");

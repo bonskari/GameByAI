@@ -1,6 +1,6 @@
-//! Wolfenstein by AI - Main Entry Point
-//! 
-//! A Wolfenstein-style game created with AI assistance using Rust and macroquad.
+//! GameByAI - Main Entry Point
+//!
+//! A 3D first-person game created with AI assistance using Rust and macroquad.
 //! Features integrated testing system and modular architecture.
 
 use macroquad::prelude::*;
@@ -16,7 +16,7 @@ use game::GameState;
 
 /// Run the game in interactive mode
 async fn run_game() {
-    println!("Starting Wolfenstein by AI - Interactive Mode");
+    println!("Starting GameByAI - Interactive Mode");
     println!("Controls: WASD to move/strafe, Mouse to look, SPACE to jump, ESC to exit");
     
     // Enable mouse capture for FPS-style mouse look
@@ -81,11 +81,11 @@ async fn run_game() {
         next_frame().await;
     }
     
-    println!("Wolfenstein by AI shutting down...");
+    println!("GameByAI shutting down...");
 }
 
 /// Main entry point
-#[macroquad::main("Wolfenstein by AI")]
+#[macroquad::main("GameByAI - 3D Game Engine")]
 async fn main() {
     let cli = Cli::parse();
     

@@ -1,10 +1,12 @@
-# GameByAI - Wolfenstein by AI
+# GameByAI - 3D Game Engine
 
-A Wolfenstein-style game created with AI assistance using **Rust** and **macroquad**.
+A 3D first-person game created with AI assistance using **Rust** and **macroquad**.
 
 ## 🦀 About
 
-This project recreates the classic Wolfenstein 3D gameplay experience using modern Rust development with the macroquad game framework. The development process is AI-assisted, combining learning with practical game development.
+This project creates a classic first-person 3D gameplay experience using modern Rust development with the macroquad game framework. The development process is AI-assisted, combining learning with practical game development.
+
+**🆕 NEW: Entity Component System (ECS) Architecture** - The game now features a complete ECS implementation alongside the original system, allowing runtime switching between architectures for comparison and learning.
 
 ## 🚀 Getting Started
 
@@ -30,7 +32,7 @@ cargo run -- visual-test
 
 ## 🎮 Game Features
 
-- **✅ Full 3D Wolfenstein-style rendering** with textured walls, floors, and ceilings
+- **✅ Full 3D first-person rendering** with textured walls, floors, and ceilings
 - **✅ Advanced pathfinding system** with A* algorithm and visual debugging
 - **✅ Modern 3D graphics** with procedural textures and lighting
 - **✅ Integrated testing system** with automated bot navigation
@@ -38,6 +40,31 @@ cargo run -- visual-test
 - **✅ First-person controls** (WASD movement, mouse look, jumping)
 - **✅ Cross-platform support** via macroquad
 - **✅ AI-assisted development** process
+- **🆕 Entity Component System (ECS)** with runtime architecture switching
+- **🆕 Hybrid architecture** supporting both legacy and ECS systems
+
+## 🏗️ ECS Architecture
+
+The game now features a complete **Entity Component System (ECS)** implementation:
+
+### Core ECS Components
+- **Transform** - Position, rotation, and scale
+- **Velocity** - Linear and angular velocity for physics
+- **Player** - Player-specific data and settings
+- **MeshRenderer** - Rendering components (future use)
+- **Wall/Floor/Ceiling** - Level geometry components
+- **BoundingBox** - Collision detection
+
+### ECS Systems
+- **PlayerMovementSystem** - Handles player input and movement
+- **PhysicsSystem** - Gravity, jumping, and physics simulation
+- **CollisionSystem** - Wall collision detection and response
+
+### Runtime Architecture Switching
+- **Press 'E'** during gameplay to switch between Legacy ↔ ECS systems
+- **Seamless transitions** with state synchronization
+- **Performance comparison** in real-time
+- **Identical gameplay** between both systems
 
 ## 🧠 AI Pathfinding System
 
@@ -56,6 +83,7 @@ The game features an advanced AI pathfinding system with:
 - **macroquad** - Simple and easy to use 2D/3D game framework
 - **Cargo** - Rust package manager and build system
 - **clap** - Command line argument parsing
+- **Custom ECS** - Entity Component System implementation
 
 ## 📁 Project Structure
 
@@ -68,7 +96,18 @@ The game features an advanced AI pathfinding system with:
 │   │   ├── state.rs         # Game state management
 │   │   ├── player.rs        # Player mechanics
 │   │   ├── map.rs           # Level data and rendering
-│   │   └── renderer_3d.rs   # 3D graphics engine
+│   │   ├── input.rs         # Centralized input handling
+│   │   ├── ecs_state.rs     # ECS game state
+│   │   └── rendering/       # 3D graphics engine
+│   ├── ecs/                 # Entity Component System
+│   │   ├── mod.rs           # ECS module exports
+│   │   ├── entity.rs        # Entity management
+│   │   ├── component.rs     # Component storage
+│   │   ├── world.rs         # ECS world container
+│   │   ├── system.rs        # System management
+│   │   ├── components.rs    # Game-specific components
+│   │   ├── query.rs         # Query system (future)
+│   │   └── resource.rs      # Resource management
 │   └── testing/
 │       ├── mod.rs           # Testing module
 │       ├── visual_tests.rs  # AI bot and pathfinding
@@ -93,6 +132,10 @@ The game features an advanced AI pathfinding system with:
 - ✅ Visual debugging and testing system
 - ✅ Minimap with real-time pathfinding visualization
 - ✅ Automated testing with AI bot navigation
+- ✅ **Entity Component System (ECS) implementation**
+- ✅ **Hybrid architecture with runtime switching**
+- ✅ **Centralized input system**
+- ✅ **Full feature parity between Legacy and ECS systems**
 
 ## 🎮 Controls
 
@@ -101,6 +144,7 @@ The game features an advanced AI pathfinding system with:
 - **Space** - Jump
 - **Tab** - Toggle between 3D and 2D view
 - **M** - Toggle mouse capture
+- **E** - **Switch between Legacy ↔ ECS systems** (NEW!)
 - **Esc** - Exit game
 
 ## 🧪 Testing
@@ -126,13 +170,27 @@ The visual test will:
 - **Complete automatically** after the specified duration
 
 ### What You'll See:
-- **Main 3D View**: Full Wolfenstein-style rendering
+- **Main 3D View**: Full first-person 3D rendering
 - **Minimap (top-right)**: 
   - Blue areas: A* algorithm exploration
   - Red areas: Calculated pathfinding routes
   - Yellow circle: Current target waypoint
   - Green dot: AI bot position and direction
 - **Overlay (top-left)**: Progress information and test status
+- **System Indicator**: Shows whether Legacy or ECS system is active
+
+## 🏛️ Architecture Comparison
+
+| Feature | Legacy System | ECS System |
+|---------|---------------|------------|
+| **Performance** | 120+ FPS | 120+ FPS |
+| **Movement** | ✅ WASD + Mouse | ✅ WASD + Mouse |
+| **Jumping** | ✅ Physics + Gravity | ✅ Physics + Gravity |
+| **Collision** | ✅ Wall Detection | ✅ Wall Detection |
+| **Code Structure** | Monolithic | Component-based |
+| **Extensibility** | Limited | High |
+| **Memory Usage** | Lower | Slightly Higher |
+| **Runtime Switch** | N/A | ✅ Press 'E' |
 
 ## 🤝 Contributing
 

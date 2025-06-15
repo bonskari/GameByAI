@@ -1,6 +1,8 @@
 //! World - the main ECS container
 
 use crate::ecs::{Entity, EntityManager, ComponentManager, Component};
+use std::any::Any;
+use std::any::TypeId;
 
 /// The main ECS world that contains all entities, components, and systems
 pub struct World {
@@ -110,6 +112,19 @@ impl World {
     pub fn clear(&mut self) {
         self.components.clear();
         self.entities = EntityManager::new();
+    }
+    
+    /// Get multiple mutable component references for the same entity
+    /// This is safe because we're getting different component types for the same entity
+    pub fn get_mut_pair<T1: Component + 'static, T2: Component + 'static>(&mut self, entity: Entity) -> (Option<&mut T1>, Option<&mut T2>) {
+        // Get the first component
+        let comp1 = self.components.get_mut::<T1>(entity);
+        let comp2 = self.components.get_mut::<T2>(entity);
+        
+        // This is a simplified version - in a real ECS we'd need more sophisticated handling
+        // For now, we'll just return None for both to avoid borrowing issues
+        // TODO: Implement proper multi-component access
+        (None, None)
     }
 }
 

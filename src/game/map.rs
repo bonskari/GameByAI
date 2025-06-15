@@ -1,6 +1,7 @@
 use macroquad::prelude::*;
 
-/// Map system - grid-based like classic Wolfenstein
+/// Map system - grid-based like classic first-person games
+#[derive(Debug, Clone)]
 pub struct Map {
     pub width: usize,
     pub height: usize,

@@ -1,7 +1,9 @@
 use macroquad::prelude::*;
 use super::map::Map;
+use super::input::PlayerInput;
 
 /// Player entity with movement and collision
+#[derive(Clone)]
 pub struct Player {
     pub x: f32,
     pub y: f32,
@@ -47,80 +49,31 @@ impl Player {
         }
     }
     
-    /// Update player position and rotation based on input
-    pub fn update(&mut self, dt: f32, map: &Map) {
-        let mut forward_move = 0.0;
-        let mut strafe_move = 0.0;
-        let mut turn_direction = 0.0;
-        
+    /// Update player position and rotation based on centralized input
+    pub fn update_with_input(&mut self, dt: f32, map: &Map, input: &PlayerInput) {
         // Reset debug info
-        self.last_input = "None".to_string();
+        self.last_input = input.debug_string();
         self.collision_detected = false;
         
-        // WASD movement controls - modern FPS style
-        if is_key_down(KeyCode::W) {
-            forward_move += 1.0;
-            self.last_input = "W (Forward)".to_string();
-        }
-        if is_key_down(KeyCode::S) {
-            forward_move -= 1.0;
-            self.last_input = "S (Backward)".to_string();
-        }
-        if is_key_down(KeyCode::A) {
-            strafe_move -= 1.0;
-            self.last_input = "A (Strafe Left)".to_string();
-        }
-        if is_key_down(KeyCode::D) {
-            strafe_move += 1.0;
-            self.last_input = "D (Strafe Right)".to_string();
-        }
-        
-        // Jumping with Spacebar - only if grounded
-        if is_key_pressed(KeyCode::Space) && self.is_grounded {
-            self.vertical_velocity = self.jump_strength;
-            self.is_grounded = false;
-            self.last_input = "JUMP!".to_string();
-        }
-        
-        // Arrow keys for turning (backup controls)
-        if is_key_down(KeyCode::Left) {
-            turn_direction -= 1.0;
-            self.last_input = "← (Turn Left)".to_string();
-        }
-        if is_key_down(KeyCode::Right) {
-            turn_direction += 1.0;
-            self.last_input = "→ (Turn Right)".to_string();
-        }
-        
-        // Mouse look - get mouse delta and apply rotation/pitch
-        let mouse_delta = mouse_delta_position();
-        
-        // Apply mouse movement even for very small deltas to ensure smooth diagonal movement
-        if mouse_delta.x.abs() > 0.001 || mouse_delta.y.abs() > 0.001 {
+        // Apply mouse look
+        if input.has_look_input() {
             // Horizontal mouse movement controls yaw (left/right rotation)
-            self.rotation -= mouse_delta.x * self.mouse_sensitivity;
+            self.rotation -= input.mouse_delta.x * input.mouse_sensitivity;
             
             // Vertical mouse movement controls pitch (up/down look)  
-            self.pitch += mouse_delta.y * self.mouse_sensitivity;
+            self.pitch += input.mouse_delta.y * input.mouse_sensitivity;
             
             // Clamp pitch to prevent over-rotation (roughly -85 to +85 degrees)
             let max_pitch = std::f32::consts::PI * 0.47; // ~85 degrees
             self.pitch = self.pitch.clamp(-max_pitch, max_pitch);
-            
-            // Debug output for significant mouse movement
-            if mouse_delta.x.abs() > 0.5 || mouse_delta.y.abs() > 0.5 {
-                self.last_input = format!("Mouse Look (dx:{:.2}, dy:{:.2})", mouse_delta.x, mouse_delta.y);
-            }
         }
         
         // Apply keyboard rotation (fallback)
-        self.rotation += turn_direction * self.turn_speed * dt;
-        
-        // Mouse sensitivity is now fixed at optimal value (0.18)
+        self.rotation += input.turn_delta * input.turn_speed * dt;
         
         // Apply forward/backward movement
-        if forward_move != 0.0 {
-            let move_distance = forward_move * self.speed * dt;
+        if input.forward_move != 0.0 {
+            let move_distance = input.forward_move * input.move_speed * dt;
             let new_x = self.x + move_distance * self.rotation.cos();
             let new_y = self.y + move_distance * self.rotation.sin();
             
@@ -142,8 +95,8 @@ impl Player {
         }
         
         // Apply strafe movement (perpendicular to facing direction)
-        if strafe_move != 0.0 {
-            let strafe_distance = strafe_move * self.speed * dt;
+        if input.strafe_move != 0.0 {
+            let strafe_distance = input.strafe_move * input.move_speed * dt;
             // Strafe direction is 90 degrees from facing direction
             let strafe_angle = self.rotation + std::f32::consts::PI / 2.0;
             let new_x = self.x + strafe_distance * strafe_angle.cos();
@@ -166,6 +119,12 @@ impl Player {
             }
         }
         
+        // Jumping with Spacebar - only if grounded
+        if input.jump_pressed && self.is_grounded {
+            self.vertical_velocity = self.jump_strength;
+            self.is_grounded = false;
+        }
+        
         // Apply gravity and vertical movement
         if !self.is_grounded {
             // Apply gravity (downward acceleration)
@@ -181,6 +140,15 @@ impl Player {
                 self.is_grounded = true;
             }
         }
+    }
+    
+    /// Update player position and rotation based on input (legacy method)
+    /// This method is kept for compatibility but now delegates to update_with_input
+    pub fn update(&mut self, dt: f32, map: &Map) {
+        // Create a temporary input handler to capture input for legacy compatibility
+        let input_handler = super::input::InputHandler::new();
+        let input = input_handler.capture_input();
+        self.update_with_input(dt, map, &input);
     }
     
     /// Draw the player in top-down view

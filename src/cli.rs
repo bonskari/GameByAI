@@ -1,9 +1,9 @@
 use clap::{Parser, Subcommand};
 
-/// Command line interface for Wolfenstein by AI
+/// Command line interface for GameByAI
 #[derive(Parser)]
-#[command(name = "wolfenstein-ai")]
-#[command(about = "A Wolfenstein-style game created with AI assistance")]
+#[command(name = "game-by-ai")]
+#[command(about = "A 3D first-person game created with AI assistance")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Commands>,
