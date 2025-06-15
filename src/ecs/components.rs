@@ -1,7 +1,7 @@
 //! Game-specific components for the GameByAI ECS
 
 use macroquad::prelude::*;
-use crate::ecs::Component;
+use crate::ecs::{Component, World};
 
 /// Position, rotation, and scale in 3D space
 #[derive(Debug, Clone)]
@@ -199,8 +199,9 @@ impl Component for StaticRenderer {}
 #[derive(Debug, Clone)]
 pub struct Collider {
     pub shape: ColliderShape,
-    pub blocks_movement: bool,
-    pub blocks_projectiles: bool,
+    pub is_static: bool,        // Static vs dynamic objects
+    pub is_trigger: bool,       // Trigger vs solid collision
+    pub material: ColliderMaterial, // Physics material properties
 }
 
 #[derive(Debug, Clone)]
@@ -210,37 +211,219 @@ pub enum ColliderShape {
     Capsule { height: f32, radius: f32 },
 }
 
+#[derive(Debug, Clone)]
+pub struct ColliderMaterial {
+    pub friction: f32,
+    pub restitution: f32,      // Bounciness (0.0 = no bounce, 1.0 = perfect bounce)
+    pub density: f32,          // For dynamic objects
+}
+
 impl Collider {
-    pub fn wall() -> Self {
+    /// Create a new collider with specified properties
+    pub fn new(shape: ColliderShape, is_static: bool, is_trigger: bool) -> Self {
         Self {
-            shape: ColliderShape::Box { size: Vec3::new(1.0, 2.0, 1.0) },
-            blocks_movement: true,
-            blocks_projectiles: true,
+            shape,
+            is_static,
+            is_trigger,
+            material: ColliderMaterial::default(),
         }
     }
 
-    pub fn floor() -> Self {
-        Self {
-            shape: ColliderShape::Box { size: Vec3::new(1.0, 0.1, 1.0) },
-            blocks_movement: false, // Floor doesn't block horizontal movement
-            blocks_projectiles: false,
+    /// Create a static solid collider (for walls, obstacles)
+    pub fn static_solid(shape: ColliderShape) -> Self {
+        Self::new(shape, true, false)
+    }
+
+    /// Create a static trigger collider (for sensors, pickups)
+    pub fn static_trigger(shape: ColliderShape) -> Self {
+        Self::new(shape, true, true)
+    }
+
+    /// Create a dynamic solid collider (for physics objects)
+    pub fn dynamic_solid(shape: ColliderShape) -> Self {
+        Self::new(shape, false, false)
+    }
+
+    /// Create a dynamic trigger collider (for moving sensors)
+    pub fn dynamic_trigger(shape: ColliderShape) -> Self {
+        Self::new(shape, false, true)
+    }
+
+    /// Set the material properties
+    pub fn with_material(mut self, material: ColliderMaterial) -> Self {
+        self.material = material;
+        self
+    }
+
+    /// Check if this collider blocks movement (solid and not trigger)
+    pub fn blocks_movement(&self) -> bool {
+        !self.is_trigger
+    }
+
+    /// Check if this collider would collide at a given position
+    pub fn would_collide_at(&self, position: Vec3, world: &World) -> bool {
+        if self.is_trigger {
+            return false; // Triggers don't block movement
+        }
+
+        // Create a temporary transform at the test position
+        let test_transform = Transform::new(position);
+
+        // Check against all other static solid colliders
+        for (_entity, other_transform, other_collider, _) in world.query_3::<Transform, Collider, StaticRenderer>() {
+            if other_collider.is_trigger {
+                continue; // Skip triggers
+            }
+
+            if self.shape.overlaps_with(&test_transform, &other_collider.shape, other_transform) {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    /// Grid-based collision check for performance (legacy compatibility)
+    pub fn check_grid_collision(world: &World, x: f32, z: f32) -> bool {
+        let grid_x = x.floor() as i32;
+        let grid_z = z.floor() as i32;
+
+        for (_entity, transform, collider, _) in world.query_3::<Transform, Collider, StaticRenderer>() {
+            if !collider.blocks_movement() {
+                continue;
+            }
+
+            let entity_grid_x = (transform.position.x - 0.5).floor() as i32;
+            let entity_grid_z = (transform.position.z - 0.5).floor() as i32;
+
+            if entity_grid_x == grid_x && entity_grid_z == grid_z {
+                return true;
+            }
+        }
+
+        false
+    }
+}
+
+impl ColliderShape {
+    /// Check if a point is inside this collider shape at the given transform
+    pub fn contains_point(&self, point: Vec3, transform: &Transform) -> bool {
+        match self {
+            ColliderShape::Box { size } => {
+                let half_size = *size * 0.5;
+                let local_point = point - transform.position;
+                
+                local_point.x.abs() <= half_size.x &&
+                local_point.y.abs() <= half_size.y &&
+                local_point.z.abs() <= half_size.z
+            },
+            ColliderShape::Sphere { radius } => {
+                let distance = (point - transform.position).length();
+                distance <= *radius
+            },
+            ColliderShape::Capsule { height, radius } => {
+                let local_point = point - transform.position;
+                let half_height = height * 0.5;
+                
+                // Check if point is within the cylindrical part
+                let horizontal_distance = (local_point.x * local_point.x + local_point.z * local_point.z).sqrt();
+                
+                if local_point.y.abs() <= half_height {
+                    // Within cylinder height, check radius
+                    horizontal_distance <= *radius
+                } else {
+                    // Check distance to hemisphere caps
+                    let cap_center_y = if local_point.y > 0.0 { half_height } else { -half_height };
+                    let cap_center = Vec3::new(0.0, cap_center_y, 0.0);
+                    let distance_to_cap = (local_point - cap_center).length();
+                    distance_to_cap <= *radius
+                }
+            }
         }
     }
 
-    pub fn prop() -> Self {
-        Self {
-            shape: ColliderShape::Box { size: Vec3::new(0.5, 1.0, 0.5) },
-            blocks_movement: true,
-            blocks_projectiles: true,
+    /// Check if this collider overlaps with another collider
+    pub fn overlaps_with(&self, self_transform: &Transform, other: &ColliderShape, other_transform: &Transform) -> bool {
+        // For now, implement simple AABB vs AABB collision
+        // This can be expanded to handle all shape combinations
+        match (self, other) {
+            (ColliderShape::Box { size: size1 }, ColliderShape::Box { size: size2 }) => {
+                let half_size1 = *size1 * 0.5;
+                let half_size2 = *size2 * 0.5;
+                
+                let pos1 = self_transform.position;
+                let pos2 = other_transform.position;
+                
+                (pos1.x - half_size1.x <= pos2.x + half_size2.x) &&
+                (pos1.x + half_size1.x >= pos2.x - half_size2.x) &&
+                (pos1.y - half_size1.y <= pos2.y + half_size2.y) &&
+                (pos1.y + half_size1.y >= pos2.y - half_size2.y) &&
+                (pos1.z - half_size1.z <= pos2.z + half_size2.z) &&
+                (pos1.z + half_size1.z >= pos2.z - half_size2.z)
+            },
+            // For other shape combinations, fall back to point-in-shape tests
+            _ => {
+                // Simple approximation: test if center of one shape is inside the other
+                self.contains_point(other_transform.position, self_transform) ||
+                other.contains_point(self_transform.position, other_transform)
+            }
         }
     }
 
-    pub fn player() -> Self {
-        Self {
-            shape: ColliderShape::Capsule { height: 1.8, radius: 0.3 },
-            blocks_movement: false,
-            blocks_projectiles: false,
+    /// Get the bounding box of this collider shape
+    pub fn get_bounds(&self, transform: &Transform) -> (Vec3, Vec3) {
+        match self {
+            ColliderShape::Box { size } => {
+                let half_size = *size * 0.5;
+                let min = transform.position - half_size;
+                let max = transform.position + half_size;
+                (min, max)
+            },
+            ColliderShape::Sphere { radius } => {
+                let r = Vec3::new(*radius, *radius, *radius);
+                let min = transform.position - r;
+                let max = transform.position + r;
+                (min, max)
+            },
+            ColliderShape::Capsule { height, radius } => {
+                let half_height = height * 0.5;
+                let r = Vec3::new(*radius, half_height + radius, *radius);
+                let min = transform.position - r;
+                let max = transform.position + r;
+                (min, max)
+            }
         }
+    }
+}
+
+impl ColliderMaterial {
+    pub fn new(friction: f32, restitution: f32, density: f32) -> Self {
+        Self {
+            friction,
+            restitution,
+            density,
+        }
+    }
+
+    /// Standard material for walls/floors
+    pub fn standard() -> Self {
+        Self::new(0.5, 0.0, 1.0)
+    }
+
+    /// Slippery material (ice, metal)
+    pub fn slippery() -> Self {
+        Self::new(0.1, 0.0, 1.0)
+    }
+
+    /// Bouncy material (rubber, springs)
+    pub fn bouncy() -> Self {
+        Self::new(0.7, 0.8, 1.0)
+    }
+}
+
+impl Default for ColliderMaterial {
+    fn default() -> Self {
+        Self::standard()
     }
 }
 

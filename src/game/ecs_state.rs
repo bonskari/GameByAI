@@ -30,7 +30,7 @@ impl EcsGameState {
             .with(Transform::new(Vec3::new(1.5, 0.6, 1.5)))
             .with(Velocity::new())
             .with(Player::new())
-            .with(Collider::player())
+            .with(Collider::dynamic_solid(ColliderShape::Capsule { height: 1.8, radius: 0.3 }))
             .build();
         
         let map = Map::new();
@@ -62,6 +62,7 @@ impl EcsGameState {
                 self.world.spawn()
                     .with(Transform::new(Vec3::new(x as f32 + 0.5, 0.0, y as f32 + 0.5)))
                     .with(StaticRenderer::floor("floor.png".to_string()))
+                    .with(Collider::static_trigger(ColliderShape::Box { size: Vec3::new(1.0, 0.1, 1.0) }))
                     .with(Floor)
                     .build();
                 floor_count += 1;
@@ -70,6 +71,7 @@ impl EcsGameState {
                 self.world.spawn()
                     .with(Transform::new(Vec3::new(x as f32 + 0.5, 2.0, y as f32 + 0.5)))
                     .with(StaticRenderer::ceiling("ceiling.png".to_string()))
+                    .with(Collider::static_trigger(ColliderShape::Box { size: Vec3::new(1.0, 0.1, 1.0) }))
                     .with(Ceiling)
                     .build();
                 ceiling_count += 1;
@@ -93,7 +95,7 @@ impl EcsGameState {
                     self.world.spawn()
                         .with(Transform::new(Vec3::new(x as f32 + 0.5, 1.0, y as f32 + 0.5)))
                         .with(StaticRenderer::wall(texture_name.to_string()))
-                        .with(Collider::wall())
+                        .with(Collider::static_solid(ColliderShape::Box { size: Vec3::new(1.0, 2.0, 1.0) }))
                         .with(Wall)
                         .build();
                     wall_count += 1;
@@ -103,6 +105,12 @@ impl EcsGameState {
         
         println!("ECS: Populated world with {} walls, {} floors, {} ceilings ({} total entities)", 
                  wall_count, floor_count, ceiling_count, wall_count + floor_count + ceiling_count + 1); // +1 for player
+    }
+    
+    /// Check collision with ECS entities that have colliders at the given position
+    fn check_ecs_collision(&self, x: f32, z: f32) -> bool {
+        // Use the centralized collision detection from the Collider component
+        Collider::check_grid_collision(&self.world, x, z)
     }
     
     /// Update the ECS game state with centralized input
@@ -127,46 +135,70 @@ impl EcsGameState {
                 // Apply keyboard rotation (fallback)
                 transform.rotation.y += input.turn_delta * input.turn_speed * delta_time;
                 
-                // Apply movement with collision detection
+                // Apply movement with ECS collision detection
                 if input.has_movement() {
                     let yaw = transform.rotation.y;
+                    let current_pos_x = transform.position.x;
+                    let current_pos_z = transform.position.z;
                     
-                    // Forward/backward movement with collision detection
+                    // Forward/backward movement with ECS collision detection
                     if input.forward_move != 0.0 {
                         let move_distance = input.forward_move * input.move_speed * delta_time;
-                        let new_x = transform.position.x + move_distance * yaw.cos();
-                        let new_z = transform.position.z + move_distance * yaw.sin();
+                        let new_x = current_pos_x + move_distance * yaw.cos();
+                        let new_z = current_pos_z + move_distance * yaw.sin();
                         
-                        // Check collision with map (convert Z to Y for 2D map)
-                        let collision_x = self.map.is_wall(new_x as i32, transform.position.z as i32);
-                        let collision_z = self.map.is_wall(transform.position.x as i32, new_z as i32);
+                        // Store current position values to avoid borrowing conflicts
+                        let check_pos_z = transform.position.z;
+                        let check_pos_x = transform.position.x;
                         
-                        if !collision_x {
-                            transform.position.x = new_x;
-                        }
+                        // Release the mutable borrow before calling collision detection
+                        drop(transform);
                         
-                        if !collision_z {
-                            transform.position.z = new_z;
+                        // Check collision with ECS entities
+                        let collision_x = self.check_ecs_collision(new_x, check_pos_z);
+                        let collision_z = self.check_ecs_collision(check_pos_x, new_z);
+                        
+                        // Re-acquire mutable borrow to update position
+                        if let Some(transform) = self.world.get_mut::<Transform>(player_entity) {
+                            if !collision_x {
+                                transform.position.x = new_x;
+                            }
+                            
+                            if !collision_z {
+                                transform.position.z = new_z;
+                            }
                         }
                     }
                     
-                    // Strafe movement with collision detection
+                    // Strafe movement with ECS collision detection
                     if input.strafe_move != 0.0 {
-                        let strafe_distance = input.strafe_move * input.move_speed * delta_time;
-                        let strafe_angle = yaw + std::f32::consts::PI / 2.0;
-                        let new_x = transform.position.x + strafe_distance * strafe_angle.cos();
-                        let new_z = transform.position.z + strafe_distance * strafe_angle.sin();
-                        
-                        // Check collision with map (convert Z to Y for 2D map)
-                        let collision_x = self.map.is_wall(new_x as i32, transform.position.z as i32);
-                        let collision_z = self.map.is_wall(transform.position.x as i32, new_z as i32);
-                        
-                        if !collision_x {
-                            transform.position.x = new_x;
-                        }
-                        
-                        if !collision_z {
-                            transform.position.z = new_z;
+                        if let Some(transform) = self.world.get_mut::<Transform>(player_entity) {
+                            let strafe_distance = input.strafe_move * input.move_speed * delta_time;
+                            let strafe_angle = yaw + std::f32::consts::PI / 2.0;
+                            let new_x = transform.position.x + strafe_distance * strafe_angle.cos();
+                            let new_z = transform.position.z + strafe_distance * strafe_angle.sin();
+                            
+                            // Store current position values to avoid borrowing conflicts
+                            let check_pos_z = transform.position.z;
+                            let check_pos_x = transform.position.x;
+                            
+                            // Release the mutable borrow before calling collision detection
+                            drop(transform);
+                            
+                            // Check collision with ECS entities
+                            let collision_x = self.check_ecs_collision(new_x, check_pos_z);
+                            let collision_z = self.check_ecs_collision(check_pos_x, new_z);
+                            
+                            // Re-acquire mutable borrow to update position
+                            if let Some(transform) = self.world.get_mut::<Transform>(player_entity) {
+                                if !collision_x {
+                                    transform.position.x = new_x;
+                                }
+                                
+                                if !collision_z {
+                                    transform.position.z = new_z;
+                                }
+                            }
                         }
                     }
                 }
