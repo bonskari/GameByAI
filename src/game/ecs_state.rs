@@ -2,13 +2,15 @@
 
 use macroquad::prelude::*;
 use crate::ecs::*;
+use crate::ecs::systems::*;
 use super::map::{Map, WallType};
 use super::input::PlayerInput;
 
-/// ECS-based game state
+/// ECS-based game state that manages all entities and systems
 pub struct EcsGameState {
     pub world: World,
     pub systems: SystemManager,
+    pub pathfinding_system: PathfindingSystem,
     pub player_entity: Option<Entity>,
     pub map: Map,
     pub frame_count: u32,
@@ -35,9 +37,10 @@ impl EcsGameState {
         
         let map = Map::new();
         
-        let mut ecs_state = Self {
+        let mut ecs_state =         Self {
             world,
             systems,
+            pathfinding_system: PathfindingSystem::new(map.clone()),
             player_entity: Some(player_entity),
             map,
             frame_count: 0,
@@ -321,7 +324,12 @@ impl EcsGameState {
     pub fn attach_test_bot(&mut self, test_duration_seconds: u64) {
         if let Some(player_entity) = self.player_entity {
             let test_bot = TestBot::new(test_duration_seconds);
+            let pathfinder = Pathfinder::new(2.0, 3.0); // movement_speed, rotation_speed
+            
             self.world.add(player_entity, test_bot);
+            self.world.add(player_entity, pathfinder);
+            
+            println!("🤖 TestBot attached with A* pathfinding capabilities");
         }
     }
     
@@ -364,125 +372,76 @@ impl EcsGameState {
         
         // Update each test bot entity
         for entity in test_bot_entities {
-            self.update_single_test_bot(entity, delta_time);
+            self.update_test_bot_waypoints(entity);
+            self.pathfinding_system.process_entity_pathfinding(&mut self.world, entity, delta_time);
         }
     }
     
-    /// Update a single test bot entity (helper method)
-    fn update_single_test_bot(&mut self, entity: Entity, delta_time: f32) {
-        // Check if entity has test bot component
-        if self.world.get::<TestBot>(entity).is_none() {
-            return;
-        }
-        
-        // Get current state
-        let (current_x, current_z, current_rotation) = {
-            if let Some(transform) = self.world.get::<Transform>(entity) {
-                (transform.position.x, transform.position.z, transform.rotation.y)
-            } else {
-                return;
-            }
-        };
-        
-        // Get test bot data and check if finished
-        let (waypoint_x, waypoint_y, movement_speed, rotation_speed, current_waypoint, is_finished) = {
+    /// Update TestBot waypoint management (pathfinding handles movement)
+    fn update_test_bot_waypoints(&mut self, entity: Entity) {
+        // Check if test bot is finished
+        let is_finished = {
             if let Some(test_bot) = self.world.get::<TestBot>(entity) {
                 if test_bot.is_finished() {
                     println!("🤖 Visual test completed after {:.1}s", test_bot.start_time.elapsed().as_secs_f32());
                     return;
                 }
-                
-                if test_bot.current_waypoint >= test_bot.waypoints.len() {
-                    return;
-                }
-                
-                let waypoint = &test_bot.waypoints[test_bot.current_waypoint];
-                (waypoint.x, waypoint.y, test_bot.movement_speed, test_bot.rotation_speed, test_bot.current_waypoint, false)
+                false
             } else {
                 return;
             }
         };
-        
-        if is_finished {
-            return;
-        }
-        
-        // Calculate movement
-        let dx = waypoint_x - current_x;
-        let dy = waypoint_y - current_z; // Note: Z in 3D is Y in 2D
-        let distance = (dx * dx + dy * dy).sqrt();
-        let target_angle = dy.atan2(dx);
-        let mut angle_diff = target_angle - current_rotation;
-        
-        // Normalize angle to [-PI, PI]
-        while angle_diff > std::f32::consts::PI { angle_diff -= 2.0 * std::f32::consts::PI; }
-        while angle_diff < -std::f32::consts::PI { angle_diff += 2.0 * std::f32::consts::PI; }
-        
-        // Update rotation
-        let max_turn = rotation_speed * delta_time;
-        let new_rotation = if angle_diff.abs() < max_turn {
-            target_angle
-        } else if angle_diff > 0.0 {
-            current_rotation + max_turn
-        } else {
-            current_rotation - max_turn
+
+        // Get current position
+        let current_position = {
+            if let Some(transform) = self.world.get::<Transform>(entity) {
+                Vec2::new(transform.position.x, transform.position.z)
+            } else {
+                return;
+            }
         };
-        
-        // Normalize rotation
-        let mut normalized_rotation = new_rotation;
-        while normalized_rotation > std::f32::consts::PI { normalized_rotation -= 2.0 * std::f32::consts::PI; }
-        while normalized_rotation < -std::f32::consts::PI { normalized_rotation += 2.0 * std::f32::consts::PI; }
-        
-        // Update transform rotation
-        if let Some(transform) = self.world.get_mut::<Transform>(entity) {
-            transform.rotation.y = normalized_rotation;
-        }
-        
-        // Move forward if facing the waypoint (within 15 degrees)
-        let facing_threshold = 15.0_f32.to_radians();
-        let mut moved = false;
-        if angle_diff.abs() < facing_threshold {
-            let move_x = normalized_rotation.cos() * movement_speed * delta_time;
-            let move_z = normalized_rotation.sin() * movement_speed * delta_time;
-            let new_x = current_x + move_x;
-            let new_z = current_z + move_z;
-            
-            // Check collision
-            if !self.check_ecs_collision(new_x, new_z) {
-                if let Some(transform) = self.world.get_mut::<Transform>(entity) {
-                    transform.position.x = new_x;
-                    transform.position.z = new_z;
-                    moved = true;
-                }
+
+        // Check if pathfinder has reached its target
+        let has_reached_target = {
+            if let Some(pathfinder) = self.world.get::<Pathfinder>(entity) {
+                pathfinder.has_reached_target(current_position)
             } else {
-                println!("Blocked by wall at ({:.2}, {:.2}) while moving from ({:.2}, {:.2}) toward waypoint {} at ({:.2}, {:.2})", 
-                    new_x, new_z, current_x, current_z, current_waypoint, waypoint_x, waypoint_y);
+                false
             }
-        }
-        
-        // Update test bot state
-        if let Some(test_bot) = self.world.get_mut::<TestBot>(entity) {
-            let current_pos = (current_x, current_z);
-            let pos_diff = (current_pos.0 - test_bot.last_position.0).abs() + (current_pos.1 - test_bot.last_position.1).abs();
-            
-            if !moved && pos_diff < 0.001 {
-                test_bot.stuck_time += delta_time;
-                if test_bot.stuck_time > 0.5 {
-                    println!("⚠️ Stuck at player ({:.2}, {:.2}), waypoint {} at ({:.2}, {:.2}) - skipping to next", 
-                        current_x, current_z, test_bot.current_waypoint, waypoint_x, waypoint_y);
-                    test_bot.current_waypoint = (test_bot.current_waypoint + 1) % test_bot.waypoints.len();
-                    test_bot.stuck_time = 0.0;
+        };
+
+        // If pathfinder reached target, advance to next waypoint
+        if has_reached_target {
+            if let Some(test_bot) = self.world.get_mut::<TestBot>(entity) {
+                test_bot.advance_waypoint();
+                
+                // Set new target for pathfinder
+                if let Some(new_target) = test_bot.get_current_target() {
+                    if let Some(pathfinder) = self.world.get_mut::<Pathfinder>(entity) {
+                        pathfinder.set_target(new_target);
+                        println!("🎯 TestBot set new pathfinding target: ({:.2}, {:.2})", new_target.x, new_target.y);
+                    }
                 }
-            } else {
-                test_bot.stuck_time = 0.0;
             }
-            test_bot.last_position = current_pos;
-            
-            // Move to next waypoint if close enough
-            if distance < 0.3 {
-                println!("✓ Reached waypoint {} at ({:.2}, {:.2})", test_bot.current_waypoint, waypoint_x, waypoint_y);
-                test_bot.current_waypoint = (test_bot.current_waypoint + 1) % test_bot.waypoints.len();
-                test_bot.stuck_time = 0.0;
+        } else {
+            // Check if pathfinder needs initial target
+            let needs_target = {
+                if let Some(pathfinder) = self.world.get::<Pathfinder>(entity) {
+                    pathfinder.target.is_none()
+                } else {
+                    false
+                }
+            };
+
+            if needs_target {
+                if let Some(test_bot) = self.world.get::<TestBot>(entity) {
+                    if let Some(target) = test_bot.get_current_target() {
+                        if let Some(pathfinder) = self.world.get_mut::<Pathfinder>(entity) {
+                            pathfinder.set_target(target);
+                            println!("🎯 TestBot set initial pathfinding target: ({:.2}, {:.2})", target.x, target.y);
+                        }
+                    }
+                }
             }
         }
     }

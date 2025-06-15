@@ -15,22 +15,25 @@ pub mod query;
 pub mod resource;
 pub mod components;
 pub mod systems;
+pub mod pathfinding;
 
-// Re-export core types
+/// Type alias for component type identification
+pub type ComponentTypeId = std::any::TypeId;
+
+// Re-export all ECS types for convenience
 pub use entity::{Entity, EntityManager};
-pub use component::{Component, ComponentManager};
-pub use world::World;
+pub use component::{Component, ComponentStorage, ComponentManager, TypedComponentStorage};
+pub use world::{World, EntityBuilder};
 pub use system::{System, SystemManager};
+pub use query::Query;
 pub use resource::{Resource, ResourceManager};
+pub use pathfinding::{PathfindingAlgorithms, PathfindingResult};
 
-// Re-export game components
+// Re-export game-specific components
 pub use components::{
-    Transform, Velocity, StaticRenderer, MaterialType, Collider, ColliderShape,
-    Player, Wall, Floor, Ceiling, Prop, TestBot, TestWaypoint
+    Transform, Velocity, StaticRenderer, MaterialType, Collider, ColliderShape, 
+    ColliderMaterial, Player, Wall, Floor, Ceiling, Prop, TestBot, TestWaypoint, Pathfinder
 };
 
 // Re-export systems
-pub use systems::{DeltaTime, MapResource};
-
-/// Type alias for component type identification
-pub type ComponentTypeId = std::any::TypeId; 
+pub use systems::{DeltaTime, MapResource}; 

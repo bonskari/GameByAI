@@ -491,12 +491,6 @@ pub struct TestBot {
     pub test_duration: std::time::Duration,
     pub current_waypoint: usize,
     pub waypoints: Vec<TestWaypoint>,
-    pub movement_speed: f32,
-    pub rotation_speed: f32,
-    pub stuck_time: f32,
-    pub last_position: (f32, f32),
-    pub explored_nodes: Vec<(i32, i32)>,
-    pub path_nodes: Vec<(i32, i32)>,
 }
 
 /// Waypoint for test bot navigation
@@ -507,19 +501,34 @@ pub struct TestWaypoint {
     pub description: String,
 }
 
+/// Pathfinder component - can be used by any entity that needs pathfinding
+#[derive(Debug, Clone)]
+pub struct Pathfinder {
+    pub target: Option<Vec2>,           // Current target position
+    pub current_path: Vec<Vec2>,        // Calculated A* path
+    pub path_index: usize,              // Current step in path
+    pub movement_speed: f32,            // How fast to move
+    pub rotation_speed: f32,            // How fast to rotate
+    pub stuck_time: f32,                // Time spent stuck
+    pub last_position: Vec2,            // Previous position for stuck detection
+    pub needs_recalculation: bool,      // Whether path needs to be recalculated
+    pub explored_nodes: Vec<(i32, i32)>, // A* explored nodes (for visualization)
+    pub arrival_threshold: f32,         // How close to get to target
+}
+
 impl TestBot {
     pub fn new(test_duration_seconds: u64) -> Self {
         let waypoints = vec![
             TestWaypoint { x: 1.5, y: 1.5, description: "Start".to_string() },
             TestWaypoint { x: 2.5, y: 1.5, description: "East corridor".to_string() },
             TestWaypoint { x: 3.5, y: 1.5, description: "Continue east".to_string() },
-            TestWaypoint { x: 3.5, y: 1.5, description: "Turn point".to_string() },
             TestWaypoint { x: 4.5, y: 1.5, description: "Far east".to_string() },
-            TestWaypoint { x: 5.5, y: 1.5, description: "Eastern wall".to_string() },
-            TestWaypoint { x: 6.5, y: 1.5, description: "Corner approach".to_string() },
-            TestWaypoint { x: 7.5, y: 1.5, description: "Near corner".to_string() },
-            TestWaypoint { x: 8.5, y: 1.5, description: "Corner".to_string() },
-            TestWaypoint { x: 8.5, y: 1.5, description: "Turn south".to_string() },
+            TestWaypoint { x: 5.5, y: 1.5, description: "Eastern corridor".to_string() },
+            TestWaypoint { x: 6.5, y: 1.5, description: "Near east wall".to_string() },
+            TestWaypoint { x: 7.5, y: 1.5, description: "East end".to_string() },
+            TestWaypoint { x: 8.5, y: 1.5, description: "Turn point".to_string() },
+            TestWaypoint { x: 8.5, y: 2.5, description: "Turn south".to_string() },
+            TestWaypoint { x: 8.5, y: 3.5, description: "South corridor".to_string() },
         ];
 
         Self {
@@ -527,12 +536,6 @@ impl TestBot {
             test_duration: std::time::Duration::from_secs(test_duration_seconds),
             current_waypoint: 0,
             waypoints,
-            movement_speed: 2.0,
-            rotation_speed: 3.0,
-            stuck_time: 0.0,
-            last_position: (1.5, 1.5),
-            explored_nodes: Vec::new(),
-            path_nodes: Vec::new(),
         }
     }
 
@@ -545,6 +548,85 @@ impl TestBot {
     pub fn is_finished(&self) -> bool {
         self.start_time.elapsed() >= self.test_duration
     }
+
+    /// Get the current target waypoint
+    pub fn get_current_target(&self) -> Option<Vec2> {
+        if self.current_waypoint < self.waypoints.len() {
+            let waypoint = &self.waypoints[self.current_waypoint];
+            Some(Vec2::new(waypoint.x, waypoint.y))
+        } else {
+            None
+        }
+    }
+
+    /// Move to the next waypoint
+    pub fn advance_waypoint(&mut self) {
+        self.current_waypoint = (self.current_waypoint + 1) % self.waypoints.len();
+        println!("✓ TestBot advancing to waypoint {} at ({:.2}, {:.2})", 
+                 self.current_waypoint, 
+                 self.waypoints[self.current_waypoint].x, 
+                 self.waypoints[self.current_waypoint].y);
+    }
 }
 
-impl Component for TestBot {} 
+impl Pathfinder {
+    pub fn new(movement_speed: f32, rotation_speed: f32) -> Self {
+        Self {
+            target: None,
+            current_path: Vec::new(),
+            path_index: 0,
+            movement_speed,
+            rotation_speed,
+            stuck_time: 0.0,
+            last_position: Vec2::ZERO,
+            needs_recalculation: false,
+            explored_nodes: Vec::new(),
+            arrival_threshold: 0.3,
+        }
+    }
+
+    /// Set a new target and mark for path recalculation
+    pub fn set_target(&mut self, target: Vec2) {
+        self.target = Some(target);
+        self.needs_recalculation = true;
+        self.path_index = 0;
+        self.stuck_time = 0.0;
+    }
+
+    /// Check if we've reached the current target
+    pub fn has_reached_target(&self, current_position: Vec2) -> bool {
+        if let Some(target) = self.target {
+            current_position.distance(target) < self.arrival_threshold
+        } else {
+            false
+        }
+    }
+
+    /// Get the next position to move toward
+    pub fn get_next_position(&self) -> Option<Vec2> {
+        if self.path_index < self.current_path.len() {
+            Some(self.current_path[self.path_index])
+        } else {
+            self.target
+        }
+    }
+
+    /// Advance to the next step in the path
+    pub fn advance_path_step(&mut self) {
+        if self.path_index < self.current_path.len() {
+            self.path_index += 1;
+        }
+    }
+
+    /// Clear the current path and target
+    pub fn clear_path(&mut self) {
+        self.current_path.clear();
+        self.path_index = 0;
+        self.target = None;
+        self.needs_recalculation = false;
+        self.explored_nodes.clear();
+    }
+}
+
+impl Component for TestBot {}
+impl Component for Pathfinder {} 
