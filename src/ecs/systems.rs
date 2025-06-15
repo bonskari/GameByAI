@@ -117,9 +117,17 @@ impl PathfindingSystem {
 
     /// Process pathfinding for a specific entity (called from ECS state)
     pub fn process_entity_pathfinding(&mut self, world: &mut World, entity: crate::ecs::Entity, delta_time: f32) {
+        // Check if entity is valid
+        if !world.is_valid(entity) {
+            return; // Skip invalid entities
+        }
+
         // Get current position
         let current_position = {
             if let Some(transform) = world.get::<Transform>(entity) {
+                if !entity.enabled || !transform.is_enabled() {
+                    return; // Skip if entity or transform is disabled
+                }
                 Vec2::new(transform.position.x, transform.position.z)
             } else {
                 return; // No transform, can't pathfind
@@ -129,6 +137,9 @@ impl PathfindingSystem {
         // Check if pathfinder needs recalculation or path following
         let needs_recalc = {
             if let Some(pathfinder) = world.get::<Pathfinder>(entity) {
+                if !entity.enabled || !pathfinder.is_enabled() {
+                    return; // Skip if entity or pathfinder is disabled
+                }
                 pathfinder.needs_recalculation
             } else {
                 return; // No pathfinder component
@@ -137,10 +148,20 @@ impl PathfindingSystem {
 
         // Recalculate path if needed
         if needs_recalc {
-            if let Some(pathfinder) = world.get_mut::<Pathfinder>(entity) {
-                if let Some(target) = pathfinder.target {
-                    let result = self.algorithms.find_path(current_position, target);
-                    
+            let target = {
+                if let Some(pathfinder) = world.get::<Pathfinder>(entity) {
+                    pathfinder.target
+                } else {
+                    return;
+                }
+            };
+            
+            if let Some(target) = target {
+                // Use ECS-aware pathfinding that respects disabled entities
+                let result = self.algorithms.find_path_with_ecs(current_position, target, world);
+                
+                // Update the pathfinder with results
+                if let Some(pathfinder) = world.get_mut::<Pathfinder>(entity) {
                     if result.found {
                         pathfinder.current_path = result.path;
                         pathfinder.explored_nodes = result.explored_nodes;
@@ -182,11 +203,13 @@ impl PathfindingSystem {
                 // Reached current path step, advance to next
                 if let Some(pathfinder) = world.get_mut::<Pathfinder>(entity) {
                     pathfinder.advance_path_step();
+                    println!("✅ Pathfinding: Reached waypoint at ({:.2}, {:.2}), advancing to next", target.x, target.y);
                     
                     // Check if we reached the final target
                     if pathfinder.has_reached_target(current_position) {
                         println!("🎯 Pathfinding: Reached final target at ({:.2}, {:.2})", target.x, target.y);
-                        pathfinder.clear_path();
+                        // Don't clear the path here - let the waypoint system handle target changes
+                        // pathfinder.clear_path();
                     }
                 }
             } else {
@@ -214,41 +237,89 @@ impl PathfindingSystem {
                     
                     transform.rotation.y = new_rotation;
                     
-                    // Move forward if facing the target (within 15 degrees)
-                    let facing_threshold = 15.0_f32.to_radians();
+                    // Move forward if facing the target (within 30 degrees for better corner navigation)
+                    let facing_threshold = 30.0_f32.to_radians();
                     if angle_diff.abs() < facing_threshold {
                         let move_distance = movement_speed * delta_time;
                         let move_x = new_rotation.cos() * move_distance;
                         let move_z = new_rotation.sin() * move_distance;
                         
-                        // Check collision before moving
-                        let new_x = transform.position.x + move_x;
-                        let new_z = transform.position.z + move_z;
+                        // Store current position values to avoid borrowing conflicts
+                        let current_x = transform.position.x;
+                        let current_z = transform.position.z;
                         
-                        // Simple collision check (can be improved)
-                        if !self.algorithms.map.is_wall(new_x.floor() as i32, new_z.floor() as i32) {
-                            transform.position.x = new_x;
-                            transform.position.z = new_z;
+                        // Calculate new position
+                        let new_x = current_x + move_x;
+                        let new_z = current_z + move_z;
+                        
+                        // Release the transform borrow before collision check
+                        drop(transform);
+                        
+                        // Use ECS-aware collision check that respects disabled entities
+                        if !crate::ecs::Collider::check_grid_collision(world, new_x, new_z) {
+                            // Re-acquire transform to update position
+                            if let Some(transform) = world.get_mut::<Transform>(entity) {
+                                transform.position.x = new_x;
+                                transform.position.z = new_z;
+                            }
                         }
                     }
                 }
                 
-                // Update stuck detection
-                if let Some(pathfinder) = world.get_mut::<Pathfinder>(entity) {
-                    let pos_diff = (current_position - pathfinder.last_position).length();
-                    
-                    if pos_diff < 0.001 {
-                        pathfinder.stuck_time += delta_time;
-                        if pathfinder.stuck_time > 1.0 { // Stuck for 1 second
-                            println!("⚠️ Pathfinding: Entity stuck, recalculating path");
-                            pathfinder.needs_recalculation = true;
-                            pathfinder.stuck_time = 0.0;
-                        }
+                // Update stuck detection with more aggressive unsticking
+                let (pos_diff, stuck_time, needs_unstick) = {
+                    if let Some(pathfinder) = world.get::<Pathfinder>(entity) {
+                        let pos_diff = (current_position - pathfinder.last_position).length();
+                        let stuck_time = pathfinder.stuck_time + delta_time;
+                        let needs_unstick = pos_diff < 0.01 && stuck_time > 0.5;
+                        (pos_diff, stuck_time, needs_unstick)
                     } else {
-                        pathfinder.stuck_time = 0.0;
+                        return;
+                    }
+                };
+                
+                if needs_unstick {
+                    println!("⚠️ Pathfinding: Entity stuck at ({:.2}, {:.2}), trying alternative movement", 
+                            current_position.x, current_position.y);
+                    
+                    // Try to move slightly in a different direction to unstick
+                    let (unstick_x, unstick_z) = {
+                        if let Some(transform) = world.get::<Transform>(entity) {
+                            let unstick_angle = transform.rotation.y + std::f32::consts::PI / 4.0; // 45 degrees
+                            let unstick_distance = 0.1; // Small movement
+                            let unstick_x = transform.position.x + unstick_angle.cos() * unstick_distance;
+                            let unstick_z = transform.position.z + unstick_angle.sin() * unstick_distance;
+                            (unstick_x, unstick_z)
+                        } else {
+                            return;
+                        }
+                    };
+                    
+                    // Check if unstick position is valid
+                    if !crate::ecs::Collider::check_grid_collision(world, unstick_x, unstick_z) {
+                        if let Some(transform) = world.get_mut::<Transform>(entity) {
+                            transform.position.x = unstick_x;
+                            transform.position.z = unstick_z;
+                            println!("🔄 Unstick movement applied");
+                        }
                     }
                     
-                    pathfinder.last_position = current_position;
+                    // Update pathfinder state
+                    if let Some(pathfinder) = world.get_mut::<Pathfinder>(entity) {
+                        pathfinder.needs_recalculation = true;
+                        pathfinder.stuck_time = 0.0;
+                        pathfinder.last_position = current_position;
+                    }
+                } else {
+                    // Update pathfinder state normally
+                    if let Some(pathfinder) = world.get_mut::<Pathfinder>(entity) {
+                        if pos_diff < 0.01 {
+                            pathfinder.stuck_time = stuck_time;
+                        } else {
+                            pathfinder.stuck_time = 0.0;
+                        }
+                        pathfinder.last_position = current_position;
+                    }
                 }
             }
         }

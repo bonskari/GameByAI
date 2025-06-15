@@ -5,11 +5,29 @@ use std::collections::HashMap;
 use crate::ecs::{Entity, ComponentTypeId};
 use crate::ecs::entity::EntityId;
 
-/// Trait that all components must implement
+/// Base trait for all components
 pub trait Component: 'static + Send + Sync {
     /// Get the type ID for this component
     fn type_id() -> ComponentTypeId where Self: Sized {
         TypeId::of::<Self>()
+    }
+
+    /// Check if this component is enabled (default implementation returns true)
+    /// Components should override this if they have an enabled field
+    fn is_enabled(&self) -> bool {
+        true
+    }
+
+    /// Enable this component (default implementation does nothing)
+    /// Components should override this if they have an enabled field
+    fn enable(&mut self) {
+        // Default implementation does nothing
+    }
+
+    /// Disable this component (default implementation does nothing)
+    /// Components should override this if they have an enabled field
+    fn disable(&mut self) {
+        // Default implementation does nothing
     }
 }
 

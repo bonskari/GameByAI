@@ -3,6 +3,7 @@
 use macroquad::prelude::*;
 use crate::ecs::*;
 use crate::ecs::systems::*;
+use crate::testing::performance_test::PerformanceTest;
 use super::map::{Map, WallType};
 use super::input::PlayerInput;
 
@@ -14,6 +15,9 @@ pub struct EcsGameState {
     pub player_entity: Option<Entity>,
     pub map: Map,
     pub frame_count: u32,
+    pub middle_pillar_entities: Vec<Entity>,  // Track middle pillars for toggling
+    pub pillars_enabled: bool,                // Current state of middle pillars
+    pub last_pillar_toggle_time: std::time::Instant, // Track when pillars were last toggled
 }
 
 impl EcsGameState {
@@ -44,6 +48,9 @@ impl EcsGameState {
             player_entity: Some(player_entity),
             map,
             frame_count: 0,
+            middle_pillar_entities: Vec::new(),
+            pillars_enabled: true,
+            last_pillar_toggle_time: std::time::Instant::now(),
         };
         
         // Populate the world with static geometry entities
@@ -66,7 +73,7 @@ impl EcsGameState {
                     .with(Transform::new(Vec3::new(x as f32 + 0.5, 0.0, y as f32 + 0.5)))
                     .with(StaticRenderer::floor("floor.png".to_string()))
                     .with(Collider::static_trigger(ColliderShape::Box { size: Vec3::new(1.0, 0.1, 1.0) }))
-                    .with(Floor)
+                    .with(Floor::new())
                     .build();
                 floor_count += 1;
                 
@@ -75,7 +82,7 @@ impl EcsGameState {
                     .with(Transform::new(Vec3::new(x as f32 + 0.5, 2.0, y as f32 + 0.5)))
                     .with(StaticRenderer::ceiling("ceiling.png".to_string()))
                     .with(Collider::static_trigger(ColliderShape::Box { size: Vec3::new(1.0, 0.1, 1.0) }))
-                    .with(Ceiling)
+                    .with(Ceiling::new())
                     .build();
                 ceiling_count += 1;
             }
@@ -94,13 +101,22 @@ impl EcsGameState {
                         WallType::EnergyConduit => "energy_conduit.png",
                     };
                     
+                    // Check if this is a middle pillar (roughly center of map)
+                    let is_middle_pillar = (x == 4 || x == 5) && (y == 4 || y == 5);
+                    
                     // Wall entity
-                    self.world.spawn()
+                    let wall_entity = self.world.spawn()
                         .with(Transform::new(Vec3::new(x as f32 + 0.5, 1.0, y as f32 + 0.5)))
                         .with(StaticRenderer::wall(texture_name.to_string()))
                         .with(Collider::static_solid(ColliderShape::Box { size: Vec3::new(1.0, 2.0, 1.0) }))
-                        .with(Wall)
+                        .with(Wall::new())
                         .build();
+                    
+                    // Store middle pillar entities for toggling
+                    if is_middle_pillar {
+                        self.middle_pillar_entities.push(wall_entity);
+                    }
+                    
                     wall_count += 1;
                 }
             }
@@ -120,9 +136,50 @@ impl EcsGameState {
     pub fn update_with_input(&mut self, delta_time: f32, input: &PlayerInput) {
         self.frame_count += 1;
         
+        // Handle manual pillar toggling (T key)
+        if input.toggle_pillars_pressed {
+            self.toggle_middle_pillars();
+        }
+        
+        // Automatic pillar toggling during tests (every 3 seconds: hidden for 1s, visible for 2s)
+        if self.has_test_bot() {
+            let elapsed = self.last_pillar_toggle_time.elapsed().as_secs_f32();
+            
+            if self.pillars_enabled && elapsed >= 2.0 {
+                // Pillars have been visible for 2 seconds, hide them for 1 second
+                self.toggle_middle_pillars();
+                println!("🤖 Auto-hiding pillars for pathfinding test (1 second)");
+            } else if !self.pillars_enabled && elapsed >= 1.0 {
+                // Pillars have been hidden for 1 second, show them for 2 seconds
+                self.toggle_middle_pillars();
+                println!("🤖 Auto-showing pillars for pathfinding test (2 seconds)");
+            }
+        }
+        
+        // Handle performance test
+        if input.performance_test_pressed {
+            Self::run_comprehensive_performance_tests();
+        }
+        
+        // Handle visual test with integrated performance testing (F1 key)
+        if input.debug_info_pressed {
+            println!("🤖 F1 pressed - Starting visual test with integrated performance testing...");
+            self.attach_test_bot(30); // 30 second test
+        }
+        
+        // Disable user input when test bot is active
+        let test_active = self.has_test_bot();
+        
+        // Debug: Print test status
+        if test_active && self.frame_count % 300 == 0 { // Every 5 seconds at 60fps
+            println!("🔍 DEBUG: Test is active, user input should be disabled");
+        }
+        
         // For now, implement basic player movement directly in the ECS state
         // This avoids the complex borrowing issues in the systems
+        // But only if no test is running (tests control the player)
         if let Some(player_entity) = self.player_entity {
+            if !test_active {
             // Update player transform based on input
             if let Some(transform) = self.world.get_mut::<Transform>(player_entity) {
                 // Apply mouse look
@@ -261,10 +318,20 @@ impl EcsGameState {
                     }
                 }
             }
-        }
+            } // Close the !test_active condition
+        } // Close the player_entity check
         
         // Update all test bot entities
-        self.update_all_test_bots(delta_time);
+        if self.has_test_bot() {
+            self.update_all_test_bots(delta_time);
+            
+            // Visual feedback when test is running
+            if self.frame_count % 120 == 0 { // Every 2 seconds at 60fps
+                if let Some((current, total, progress)) = self.get_test_bot_progress() {
+                    println!("🤖 Test Bot Progress: {}/{} waypoints ({:.1}%)", current, total, progress * 100.0);
+                }
+            }
+        }
         
         // Run systems (commented out for now due to borrowing issues)
         // self.systems.run_all(&mut self.world);
@@ -320,14 +387,17 @@ impl EcsGameState {
         }
     }
     
-    /// Attach a test bot component to the player entity
+    /// Attach a test bot component to the player entity with integrated performance testing
     pub fn attach_test_bot(&mut self, test_duration_seconds: u64) {
         if let Some(player_entity) = self.player_entity {
             let test_bot = TestBot::new(test_duration_seconds);
-            let pathfinder = Pathfinder::new(2.0, 3.0); // movement_speed, rotation_speed
+            let pathfinder = Pathfinder::new(2.0, 5.0); // Slower movement for better precision, faster rotation
             
             self.world.add(player_entity, test_bot);
             self.world.add(player_entity, pathfinder);
+            
+            // Run integrated performance test
+            Self::run_integrated_performance_test();
             
             println!("🤖 TestBot attached with A* pathfinding capabilities");
         }
@@ -361,89 +431,217 @@ impl EcsGameState {
     
     /// Update all entities with TestBot components (proper ECS approach)
     fn update_all_test_bots(&mut self, delta_time: f32) {
-        // Get all entities with TestBot components
-        let test_bot_entities: Vec<Entity> = {
+        // Collect entities first to avoid borrowing conflicts
+        let test_bot_entities: Vec<crate::ecs::Entity> = {
             let mut entities = Vec::new();
-            for (entity, _) in self.world.query_1::<TestBot>() {
+            for (entity, _test_bot) in self.world.query_1::<TestBot>() {
                 entities.push(entity);
             }
             entities
         };
         
-        // Update each test bot entity
+        // Process pathfinding for all entities with TestBot components
         for entity in test_bot_entities {
-            self.update_test_bot_waypoints(entity);
+            // Update pathfinding for this test bot entity
             self.pathfinding_system.process_entity_pathfinding(&mut self.world, entity, delta_time);
+            
+            // Update the test bot's waypoint progression
+            self.update_test_bot_waypoints(entity);
         }
     }
     
     /// Update TestBot waypoint management (pathfinding handles movement)
     fn update_test_bot_waypoints(&mut self, entity: Entity) {
         // Check if test bot is finished
-        let is_finished = {
-            if let Some(test_bot) = self.world.get::<TestBot>(entity) {
-                if test_bot.is_finished() {
-                    println!("🤖 Visual test completed after {:.1}s", test_bot.start_time.elapsed().as_secs_f32());
-                    return;
-                }
-                false
-            } else {
+        if let Some(test_bot) = self.world.get::<TestBot>(entity) {
+            if test_bot.is_finished() {
+                println!("🤖 Visual test completed after {:.1}s", test_bot.start_time.elapsed().as_secs_f32());
                 return;
-            }
-        };
-
-        // Get current position
-        let current_position = {
-            if let Some(transform) = self.world.get::<Transform>(entity) {
-                Vec2::new(transform.position.x, transform.position.z)
-            } else {
-                return;
-            }
-        };
-
-        // Check if pathfinder has reached its target
-        let has_reached_target = {
-            if let Some(pathfinder) = self.world.get::<Pathfinder>(entity) {
-                pathfinder.has_reached_target(current_position)
-            } else {
-                false
-            }
-        };
-
-        // If pathfinder reached target, advance to next waypoint
-        if has_reached_target {
-            if let Some(test_bot) = self.world.get_mut::<TestBot>(entity) {
-                test_bot.advance_waypoint();
-                
-                // Set new target for pathfinder
-                if let Some(new_target) = test_bot.get_current_target() {
-                    if let Some(pathfinder) = self.world.get_mut::<Pathfinder>(entity) {
-                        pathfinder.set_target(new_target);
-                        println!("🎯 TestBot set new pathfinding target: ({:.2}, {:.2})", new_target.x, new_target.y);
-                    }
-                }
             }
         } else {
-            // Check if pathfinder needs initial target
-            let needs_target = {
-                if let Some(pathfinder) = self.world.get::<Pathfinder>(entity) {
-                    pathfinder.target.is_none()
+            return;
+        }
+
+        // Get current position and add debug output
+        let current_position = {
+            if let Some(transform) = self.world.get::<Transform>(entity) {
+                let pos = Vec2::new(transform.position.x, transform.position.z);
+                // Debug: Print position every few frames to track movement
+                if self.frame_count % 300 == 0 { // Every 5 seconds at 60fps
+                    println!("🔍 DEBUG: Player position: ({:.2}, {:.2})", pos.x, pos.y);
+                }
+                pos
+            } else {
+                return;
+            }
+        };
+
+        // Check pathfinder status
+        let (has_target, has_reached_target, path_is_empty) = {
+            if let Some(pathfinder) = self.world.get::<Pathfinder>(entity) {
+                let has_target = pathfinder.target.is_some();
+                let has_reached = pathfinder.has_reached_target(current_position);
+                let path_empty = pathfinder.current_path.is_empty();
+                (has_target, has_reached, path_empty)
+            } else {
+                (false, false, true)
+            }
+        };
+
+        // If we've reached the target OR the path is empty (indicating completion), advance waypoint
+        if (has_target && has_reached_target) || (has_target && path_is_empty) {
+            // First, advance the waypoint and get the new target
+            let new_target_info = {
+                if let Some(test_bot) = self.world.get_mut::<TestBot>(entity) {
+                    test_bot.advance_waypoint();
+                    let current_waypoint = test_bot.current_waypoint;
+                    let new_target = test_bot.get_current_target();
+                    Some((current_waypoint, new_target))
                 } else {
-                    false
+                    None
                 }
             };
-
-            if needs_target {
-                if let Some(test_bot) = self.world.get::<TestBot>(entity) {
-                    if let Some(target) = test_bot.get_current_target() {
-                        if let Some(pathfinder) = self.world.get_mut::<Pathfinder>(entity) {
-                            pathfinder.set_target(target);
-                            println!("🎯 TestBot set initial pathfinding target: ({:.2}, {:.2})", target.x, target.y);
-                        }
+            
+            // Then set the new target for pathfinder
+            if let Some((current_waypoint, Some(new_target))) = new_target_info {
+                if let Some(pathfinder) = self.world.get_mut::<Pathfinder>(entity) {
+                    pathfinder.set_target(new_target);
+                    println!("🎯 TestBot advancing to waypoint {} at ({:.2}, {:.2})", 
+                            current_waypoint, new_target.x, new_target.y);
+                }
+            }
+        } else if !has_target {
+            // No target set, set initial target
+            if let Some(test_bot) = self.world.get::<TestBot>(entity) {
+                if let Some(target) = test_bot.get_current_target() {
+                    if let Some(pathfinder) = self.world.get_mut::<Pathfinder>(entity) {
+                        pathfinder.set_target(target);
+                        println!("🎯 TestBot set initial pathfinding target: ({:.2}, {:.2})", target.x, target.y);
                     }
                 }
             }
         }
+    }
+    
+    /// Toggle the enabled state of middle pillar entities (component-level)
+    pub fn toggle_middle_pillars(&mut self) {
+        self.pillars_enabled = !self.pillars_enabled;
+        self.last_pillar_toggle_time = std::time::Instant::now(); // Reset timer
+        
+        let action = if self.pillars_enabled { "enabled" } else { "disabled" };
+        println!("🏛️ Middle pillars {} (Total: {} pillars)", action, self.middle_pillar_entities.len());
+        
+        // Toggle each middle pillar entity's components
+        for &entity in &self.middle_pillar_entities {
+            // Toggle StaticRenderer component (affects rendering)
+            if let Some(static_renderer) = self.world.get_mut::<StaticRenderer>(entity) {
+                if self.pillars_enabled {
+                    static_renderer.enable();
+                } else {
+                    static_renderer.disable();
+                }
+            }
+            
+            // Toggle Collider component (affects physics/collision)
+            if let Some(collider) = self.world.get_mut::<Collider>(entity) {
+                if self.pillars_enabled {
+                    collider.enable();
+                } else {
+                    collider.disable();
+                }
+            }
+        }
+    }
+    
+    /// Get pillar toggle status for UI display
+    pub fn get_pillar_status(&self) -> (bool, usize) {
+        (self.pillars_enabled, self.middle_pillar_entities.len())
+    }
+    
+    /// Get current test bot target position for minimap visualization
+    pub fn get_test_bot_target(&self) -> Option<(f32, f32)> {
+        if let Some(player_entity) = self.player_entity {
+            if let Some(pathfinder) = self.world.get::<Pathfinder>(player_entity) {
+                if let Some(target) = pathfinder.target {
+                    return Some((target.x, target.y));
+                }
+            }
+        }
+        None
+    }
+    
+    /// Get pathfinding debug information (path and explored nodes) for minimap visualization
+    pub fn get_pathfinding_debug_info(&self) -> (Option<Vec<macroquad::math::Vec2>>, Option<Vec<(i32, i32)>>) {
+        if let Some(player_entity) = self.player_entity {
+            if let Some(pathfinder) = self.world.get::<Pathfinder>(player_entity) {
+                let path = if !pathfinder.current_path.is_empty() {
+                    Some(pathfinder.current_path.clone())
+                } else {
+                    None
+                };
+                
+                let explored = if !pathfinder.explored_nodes.is_empty() {
+                    Some(pathfinder.explored_nodes.clone())
+                } else {
+                    None
+                };
+                
+                return (path, explored);
+            }
+        }
+        (None, None)
+    }
+    
+    /// Run integrated performance test automatically during visual tests
+    pub fn run_integrated_performance_test() {
+        println!("\n🔥 INTEGRATED PERFORMANCE TEST (Running alongside visual test)");
+        println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        println!("🎯 Running Quick Performance Check (100 iterations, 253 entities)...");
+        
+        let result = crate::testing::performance_test::PerformanceTest::run_game_realistic_test();
+        
+        println!("\n📊 PERFORMANCE RESULTS:");
+        println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        println!("Current ECS System Performance:");
+        if result.performance_difference_percent > 20.0 {
+            println!("✅ Entity.enabled approach is {:.2}% faster", result.performance_difference_percent);
+            println!("💡 Significant performance difference - current approach is well-optimized");
+        } else {
+            println!("⚠️ Performance difference: {:.2}%", result.performance_difference_percent);
+            println!("💡 Minimal performance difference - architecture choice is flexible");
+        }
+        println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        println!("🤖 Visual test will now begin with performance-validated ECS system!");
+    }
+    
+    /// Run comprehensive performance tests (P key - for detailed analysis)
+    pub fn run_comprehensive_performance_tests() {
+        println!("\n🔥 COMPREHENSIVE PERFORMANCE ANALYSIS!");
+        println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        
+        // Run multiple test scenarios
+        println!("\n🎯 Running Game-Realistic Test (1000 iterations, 253 entities)...");
+        let realistic_result = PerformanceTest::run_game_realistic_test();
+        
+        println!("\n🚀 Running Stress Test (100 iterations, 10,000 entities)...");
+        let stress_result = PerformanceTest::run_stress_test();
+        
+        println!("\n📈 COMPREHENSIVE ANALYSIS:");
+        println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        println!("Game-realistic scenario (253 entities):");
+        println!("  • Performance difference: {:.2}%", realistic_result.performance_difference_percent);
+        println!("Stress test scenario (10,000 entities):");
+        println!("  • Performance difference: {:.2}%", stress_result.performance_difference_percent);
+        
+        if realistic_result.performance_difference_percent < 5.0 && stress_result.performance_difference_percent < 20.0 {
+            println!("\n💡 RECOMMENDATION: Use entity.enabled approach for code simplicity");
+            println!("   The Vec<bool> optimization provides negligible benefits at this scale");
+        } else {
+            println!("\n💡 RECOMMENDATION: Current Vec<bool> approach shows meaningful performance benefits");
+            println!("   The optimization is justified by the performance gains");
+        }
+        
+        println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     }
 }
 

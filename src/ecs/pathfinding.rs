@@ -4,6 +4,7 @@ use macroquad::prelude::*;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::cmp::Ordering;
 use crate::game::map::Map;
+use crate::ecs::{World, Collider};
 
 /// A* pathfinding service that can be shared across systems
 #[derive(Debug)]
@@ -49,7 +50,120 @@ impl PathfindingAlgorithms {
         Self { map }
     }
 
-    /// Find path using A* algorithm
+    /// Find path using A* algorithm with ECS entity collision checking
+    pub fn find_path_with_ecs(&self, start: Vec2, goal: Vec2, world: &World) -> PathfindingResult {
+        let start_grid = (start.x.floor() as i32, start.y.floor() as i32);
+        let goal_grid = (goal.x.floor() as i32, goal.y.floor() as i32);
+
+        // Check if start or goal are blocked by static map or enabled ECS entities
+        if self.is_position_blocked(start_grid.0, start_grid.1, world) || 
+           self.is_position_blocked(goal_grid.0, goal_grid.1, world) {
+            return PathfindingResult {
+                path: Vec::new(),
+                explored_nodes: Vec::new(),
+                found: false,
+            };
+        }
+
+        let mut open_set = BinaryHeap::new();
+        let mut closed_set = HashSet::new();
+        let mut came_from: HashMap<(i32, i32), (i32, i32)> = HashMap::new();
+        let mut g_score: HashMap<(i32, i32), f32> = HashMap::new();
+        let mut explored_nodes = Vec::new();
+
+        // Initialize start node
+        let start_node = AStarNode {
+            position: start_grid,
+            g_cost: 0.0,
+            h_cost: self.heuristic(start_grid, goal_grid),
+            f_cost: self.heuristic(start_grid, goal_grid),
+            parent: None,
+        };
+
+        open_set.push(start_node);
+        g_score.insert(start_grid, 0.0);
+
+        while let Some(current) = open_set.pop() {
+            let current_pos = current.position;
+
+            // Add to explored nodes for visualization
+            explored_nodes.push(current_pos);
+
+            // Check if we reached the goal
+            if current_pos == goal_grid {
+                let path = self.reconstruct_path(&came_from, current_pos, start, goal);
+                return PathfindingResult {
+                    path,
+                    explored_nodes,
+                    found: true,
+                };
+            }
+
+            closed_set.insert(current_pos);
+
+            // Check all neighbors (4-directional movement only)
+            for neighbor_pos in self.get_neighbors(current_pos) {
+                if closed_set.contains(&neighbor_pos) {
+                    continue;
+                }
+
+                // Skip if neighbor is blocked by static map or enabled ECS entities
+                if self.is_position_blocked(neighbor_pos.0, neighbor_pos.1, world) {
+                    continue;
+                }
+
+                // Calculate movement cost (4-directional only - all moves cost 1.0)
+                let movement_cost = 1.0; // All moves are straight (no diagonals)
+
+                let tentative_g_score = current.g_cost + movement_cost;
+
+                // Check if this path to neighbor is better
+                if let Some(&existing_g) = g_score.get(&neighbor_pos) {
+                    if tentative_g_score >= existing_g {
+                        continue;
+                    }
+                }
+
+                // This path is the best so far
+                came_from.insert(neighbor_pos, current_pos);
+                g_score.insert(neighbor_pos, tentative_g_score);
+
+                let neighbor_node = AStarNode {
+                    position: neighbor_pos,
+                    g_cost: tentative_g_score,
+                    h_cost: self.heuristic(neighbor_pos, goal_grid),
+                    f_cost: tentative_g_score + self.heuristic(neighbor_pos, goal_grid),
+                    parent: Some(current_pos),
+                };
+
+                open_set.push(neighbor_node);
+            }
+        }
+
+        // No path found
+        PathfindingResult {
+            path: Vec::new(),
+            explored_nodes,
+            found: false,
+        }
+    }
+
+    /// Check if a position is blocked by static map or enabled ECS entities
+    fn is_position_blocked(&self, x: i32, y: i32, world: &World) -> bool {
+        // First check static map
+        if self.map.is_wall(x, y) {
+            return true;
+        }
+
+        // Then check ECS entities with colliders
+        // Convert grid position to world position for collision check
+        let world_x = x as f32 + 0.5;
+        let world_z = y as f32 + 0.5;
+        
+        Collider::check_grid_collision(world, world_x, world_z)
+    }
+
+    /// Find path using A* algorithm (legacy version, doesn't check ECS entities)
     pub fn find_path(&self, start: Vec2, goal: Vec2) -> PathfindingResult {
         let start_grid = (start.x.floor() as i32, start.y.floor() as i32);
         let goal_grid = (goal.x.floor() as i32, goal.y.floor() as i32);
@@ -99,7 +213,7 @@ impl PathfindingAlgorithms {
 
             closed_set.insert(current_pos);
 
-            // Check all neighbors (8-directional movement)
+            // Check all neighbors (4-directional movement only)
             for neighbor_pos in self.get_neighbors(current_pos) {
                 if closed_set.contains(&neighbor_pos) {
                     continue;
@@ -110,12 +224,8 @@ impl PathfindingAlgorithms {
                     continue;
                 }
 
-                // Calculate movement cost (diagonal movement costs more)
-                let movement_cost = if (neighbor_pos.0 - current_pos.0).abs() + (neighbor_pos.1 - current_pos.1).abs() == 2 {
-                    1.414 // Diagonal movement (sqrt(2))
-                } else {
-                    1.0   // Straight movement
-                };
+                // Calculate movement cost (4-directional only - all moves cost 1.0)
+                let movement_cost = 1.0; // All moves are straight (no diagonals)
 
                 let tentative_g_score = current.g_cost + movement_cost;
 
@@ -150,41 +260,40 @@ impl PathfindingAlgorithms {
         }
     }
 
-    /// Get all valid neighbors for a position (8-directional)
+    /// Get all valid neighbors for a position (4-directional only - no diagonals)
     fn get_neighbors(&self, pos: (i32, i32)) -> Vec<(i32, i32)> {
         let mut neighbors = Vec::new();
         let (x, y) = pos;
 
-        // 8-directional movement
-        for dx in -1..=1 {
-            for dy in -1..=1 {
-                if dx == 0 && dy == 0 {
-                    continue; // Skip current position
-                }
+        // 4-directional movement only (up, down, left, right)
+        let directions = [
+            (0, -1), // Up
+            (0, 1),  // Down
+            (-1, 0), // Left
+            (1, 0),  // Right
+        ];
 
-                let new_x = x + dx;
-                let new_y = y + dy;
+        for (dx, dy) in directions.iter() {
+            let new_x = x + dx;
+            let new_y = y + dy;
 
-                // Check bounds
-                if new_x >= 0 && new_y >= 0 && 
-                   new_x < self.map.width as i32 && new_y < self.map.height as i32 {
-                    neighbors.push((new_x, new_y));
-                }
+            // Check bounds
+            if new_x >= 0 && new_y >= 0 && 
+               new_x < self.map.width as i32 && new_y < self.map.height as i32 {
+                neighbors.push((new_x, new_y));
             }
         }
 
         neighbors
     }
 
-    /// Heuristic function (Manhattan distance with diagonal adjustment)
+    /// Heuristic function (Manhattan distance for 4-directional movement)
     fn heuristic(&self, a: (i32, i32), b: (i32, i32)) -> f32 {
         let dx = (a.0 - b.0).abs() as f32;
         let dy = (a.1 - b.1).abs() as f32;
         
-        // Octile distance (better for 8-directional movement)
-        let min = dx.min(dy);
-        let max = dx.max(dy);
-        min * 1.414 + (max - min)
+        // Manhattan distance (perfect for 4-directional movement)
+        dx + dy
     }
 
     /// Reconstruct the path from the came_from map

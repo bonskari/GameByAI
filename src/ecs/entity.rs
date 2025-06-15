@@ -10,12 +10,13 @@ pub type EntityId = u32;
 pub struct Entity {
     pub id: EntityId,
     pub generation: u32,
+    pub enabled: bool,
 }
 
 impl Entity {
     /// Create a new entity with given id and generation
     pub fn new(id: EntityId, generation: u32) -> Self {
-        Self { id, generation }
+        Self { id, generation, enabled: true }
     }
     
     /// Check if this entity handle is valid
@@ -56,7 +57,7 @@ impl EntityManager {
             let id = self.next_id;
             self.next_id += 1;
             
-            // Ensure we have space in generations array
+            // Ensure we have space in arrays
             if id as usize >= self.generations.len() {
                 self.generations.resize(id as usize + 1, 0);
             }
@@ -120,6 +121,8 @@ impl EntityManager {
         
         entities
     }
+
+
 }
 
 impl Default for EntityManager {

@@ -1,7 +1,7 @@
 //! Game-specific components for the GameByAI ECS
 
 use macroquad::prelude::*;
-use crate::ecs::{Component, World};
+use crate::ecs::{Component, World, Entity};
 
 /// Position, rotation, and scale in 3D space
 #[derive(Debug, Clone)]
@@ -9,6 +9,7 @@ pub struct Transform {
     pub position: Vec3,
     pub rotation: Vec3, // Euler angles in radians
     pub scale: Vec3,
+    pub enabled: bool,
 }
 
 impl Transform {
@@ -17,6 +18,7 @@ impl Transform {
             position,
             rotation: Vec3::ZERO,
             scale: Vec3::ONE,
+            enabled: true,
         }
     }
 
@@ -28,6 +30,26 @@ impl Transform {
     pub fn with_scale(mut self, scale: Vec3) -> Self {
         self.scale = scale;
         self
+    }
+
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    /// Enable this component
+    pub fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    /// Disable this component
+    pub fn disable(&mut self) {
+        self.enabled = false;
+    }
+
+    /// Check if this component is enabled
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
     }
 
     /// Get the forward direction vector
@@ -74,13 +96,26 @@ impl Default for Transform {
     }
 }
 
-impl Component for Transform {}
+impl Component for Transform {
+    fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    fn disable(&mut self) {
+        self.enabled = false;
+    }
+}
 
 /// Linear and angular velocity
 #[derive(Debug, Clone)]
 pub struct Velocity {
     pub linear: Vec3,
     pub angular: Vec3,
+    pub enabled: bool,
 }
 
 impl Velocity {
@@ -88,6 +123,7 @@ impl Velocity {
         Self {
             linear: Vec3::ZERO,
             angular: Vec3::ZERO,
+            enabled: true,
         }
     }
 
@@ -95,7 +131,28 @@ impl Velocity {
         Self {
             linear: velocity,
             angular: Vec3::ZERO,
+            enabled: true,
         }
+    }
+
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    /// Enable this component
+    pub fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    /// Disable this component
+    pub fn disable(&mut self) {
+        self.enabled = false;
+    }
+
+    /// Check if this component is enabled
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
     }
 }
 
@@ -105,7 +162,19 @@ impl Default for Velocity {
     }
 }
 
-impl Component for Velocity {}
+impl Component for Velocity {
+    fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    fn disable(&mut self) {
+        self.enabled = false;
+    }
+}
 
 /// Unified renderer for all static geometry (walls, floors, ceilings, props)
 pub struct StaticRenderer {
@@ -114,6 +183,7 @@ pub struct StaticRenderer {
     pub material_type: MaterialType,
     pub color: Color,
     pub visible: bool,
+    pub enabled: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -132,6 +202,7 @@ impl StaticRenderer {
             material_type,
             color: WHITE,
             visible: true,
+            enabled: true,
         }
     }
 
@@ -165,6 +236,50 @@ impl StaticRenderer {
         self.mesh = Some(mesh);
         self
     }
+
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    /// Enable this component
+    pub fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    /// Disable this component
+    pub fn disable(&mut self) {
+        self.enabled = false;
+    }
+
+    /// Check if this component is enabled
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    /// Check if this renderer should actually render (both enabled and visible)
+    pub fn should_render(&self) -> bool {
+        self.enabled && self.visible
+    }
+
+    /// Enable/disable rendering (affects visible flag)
+    pub fn set_visible(&mut self, visible: bool) {
+        self.visible = visible;
+    }
+}
+
+impl Component for StaticRenderer {
+    fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    fn disable(&mut self) {
+        self.enabled = false;
+    }
 }
 
 // Custom Debug implementation to handle Mesh
@@ -176,6 +291,7 @@ impl std::fmt::Debug for StaticRenderer {
             .field("material_type", &self.material_type)
             .field("color", &self.color)
             .field("visible", &self.visible)
+            .field("enabled", &self.enabled)
             .finish()
     }
 }
@@ -189,11 +305,10 @@ impl Clone for StaticRenderer {
             material_type: self.material_type.clone(),
             color: self.color,
             visible: self.visible,
+            enabled: self.enabled,
         }
     }
 }
-
-impl Component for StaticRenderer {}
 
 /// Collision detection and physics properties
 #[derive(Debug, Clone)]
@@ -202,6 +317,7 @@ pub struct Collider {
     pub is_static: bool,        // Static vs dynamic objects
     pub is_trigger: bool,       // Trigger vs solid collision
     pub material: ColliderMaterial, // Physics material properties
+    pub enabled: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -226,6 +342,7 @@ impl Collider {
             is_static,
             is_trigger,
             material: ColliderMaterial::default(),
+            enabled: true,
         }
     }
 
@@ -255,24 +372,44 @@ impl Collider {
         self
     }
 
-    /// Check if this collider blocks movement (solid and not trigger)
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    /// Enable this component
+    pub fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    /// Disable this component
+    pub fn disable(&mut self) {
+        self.enabled = false;
+    }
+
+    /// Check if this component is enabled
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    /// Check if this collider blocks movement (solid and not trigger and enabled)
     pub fn blocks_movement(&self) -> bool {
-        !self.is_trigger
+        self.enabled && !self.is_trigger
     }
 
     /// Check if this collider would collide at a given position
     pub fn would_collide_at(&self, position: Vec3, world: &World) -> bool {
-        if self.is_trigger {
-            return false; // Triggers don't block movement
+        if !self.enabled || self.is_trigger {
+            return false; // Disabled or triggers don't block movement
         }
 
         // Create a temporary transform at the test position
         let test_transform = Transform::new(position);
 
         // Check against all other static solid colliders
-        for (_entity, other_transform, other_collider, _) in world.query_3::<Transform, Collider, StaticRenderer>() {
-            if other_collider.is_trigger {
-                continue; // Skip triggers
+        for (entity, other_transform, other_collider, _) in world.query_3::<Transform, Collider, StaticRenderer>() {
+            if !other_collider.enabled || other_collider.is_trigger {
+                continue; // Skip disabled or triggers
             }
 
             if self.shape.overlaps_with(&test_transform, &other_collider.shape, other_transform) {
@@ -288,7 +425,12 @@ impl Collider {
         let grid_x = x.floor() as i32;
         let grid_z = z.floor() as i32;
 
-        for (_entity, transform, collider, _) in world.query_3::<Transform, Collider, StaticRenderer>() {
+        for (entity, transform, collider, _) in world.query_3::<Transform, Collider, StaticRenderer>() {
+            // Skip disabled entities or disabled colliders
+            if !world.is_valid(entity) || !entity.enabled || !collider.is_enabled() || !transform.is_enabled() {
+                continue;
+            }
+            
             if !collider.blocks_movement() {
                 continue;
             }
@@ -302,6 +444,20 @@ impl Collider {
         }
 
         false
+    }
+}
+
+impl Component for Collider {
+    fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    fn disable(&mut self) {
+        self.enabled = false;
     }
 }
 
@@ -427,8 +583,6 @@ impl Default for ColliderMaterial {
     }
 }
 
-impl Component for Collider {}
-
 /// Player-specific component
 #[derive(Debug, Clone)]
 pub struct Player {
@@ -437,6 +591,7 @@ pub struct Player {
     pub is_grounded: bool,
     pub move_speed: f32,
     pub jump_strength: f32,
+    pub enabled: bool,
 }
 
 impl Player {
@@ -447,7 +602,28 @@ impl Player {
             is_grounded: true,
             move_speed: 5.0,
             jump_strength: 4.5,
+            enabled: true,
         }
+    }
+
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    /// Enable this component
+    pub fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    /// Disable this component
+    pub fn disable(&mut self) {
+        self.enabled = false;
+    }
+
+    /// Check if this component is enabled
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
     }
 }
 
@@ -457,48 +633,276 @@ impl Default for Player {
     }
 }
 
-impl Component for Player {}
+impl Component for Player {
+    fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    fn disable(&mut self) {
+        self.enabled = false;
+    }
+}
 
 // Tag components for easy querying
 /// Marker component for wall entities
 #[derive(Debug, Clone)]
-pub struct Wall;
+pub struct Wall {
+    pub enabled: bool,
+}
 
-impl Component for Wall {}
+impl Wall {
+    pub fn new() -> Self {
+        Self { enabled: true }
+    }
+
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    /// Enable this component
+    pub fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    /// Disable this component
+    pub fn disable(&mut self) {
+        self.enabled = false;
+    }
+
+    /// Check if this component is enabled
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+}
+
+impl Default for Wall {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Component for Wall {
+    fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    fn disable(&mut self) {
+        self.enabled = false;
+    }
+}
 
 /// Marker component for floor entities  
 #[derive(Debug, Clone)]
-pub struct Floor;
+pub struct Floor {
+    pub enabled: bool,
+}
 
-impl Component for Floor {}
+impl Floor {
+    pub fn new() -> Self {
+        Self { enabled: true }
+    }
+
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    /// Enable this component
+    pub fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    /// Disable this component
+    pub fn disable(&mut self) {
+        self.enabled = false;
+    }
+
+    /// Check if this component is enabled
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+}
+
+impl Default for Floor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Component for Floor {
+    fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    fn disable(&mut self) {
+        self.enabled = false;
+    }
+}
 
 /// Marker component for ceiling entities
 #[derive(Debug, Clone)]
-pub struct Ceiling;
+pub struct Ceiling {
+    pub enabled: bool,
+}
 
-impl Component for Ceiling {}
+impl Ceiling {
+    pub fn new() -> Self {
+        Self { enabled: true }
+    }
+
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    /// Enable this component
+    pub fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    /// Disable this component
+    pub fn disable(&mut self) {
+        self.enabled = false;
+    }
+
+    /// Check if this component is enabled
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+}
+
+impl Default for Ceiling {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Component for Ceiling {
+    fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    fn disable(&mut self) {
+        self.enabled = false;
+    }
+}
 
 /// Marker component for prop entities
 #[derive(Debug, Clone)]
-pub struct Prop;
-
-impl Component for Prop {}
-
-/// Test bot component for automated testing
-#[derive(Debug, Clone)]
-pub struct TestBot {
-    pub start_time: std::time::Instant,
-    pub test_duration: std::time::Duration,
-    pub current_waypoint: usize,
-    pub waypoints: Vec<TestWaypoint>,
+pub struct Prop {
+    pub enabled: bool,
 }
 
-/// Waypoint for test bot navigation
+impl Prop {
+    pub fn new() -> Self {
+        Self { enabled: true }
+    }
+
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    /// Enable this component
+    pub fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    /// Disable this component
+    pub fn disable(&mut self) {
+        self.enabled = false;
+    }
+
+    /// Check if this component is enabled
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+}
+
+impl Default for Prop {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Component for Prop {
+    fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    fn disable(&mut self) {
+        self.enabled = false;
+    }
+}
+
+/// Test waypoint component for pathfinding demonstrations
 #[derive(Debug, Clone)]
 pub struct TestWaypoint {
-    pub x: f32,
-    pub y: f32,
-    pub description: String,
+    pub position: Vec2,
+    pub radius: f32,
+    pub enabled: bool,
+}
+
+impl TestWaypoint {
+    pub fn new(position: Vec2, radius: f32) -> Self {
+        Self {
+            position,
+            radius,
+            enabled: true,
+        }
+    }
+
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    pub fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    pub fn disable(&mut self) {
+        self.enabled = false;
+    }
+}
+
+impl Component for TestWaypoint {
+    fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    fn disable(&mut self) {
+        self.enabled = false;
+    }
 }
 
 /// Pathfinder component - can be used by any entity that needs pathfinding
@@ -514,21 +918,35 @@ pub struct Pathfinder {
     pub needs_recalculation: bool,      // Whether path needs to be recalculated
     pub explored_nodes: Vec<(i32, i32)>, // A* explored nodes (for visualization)
     pub arrival_threshold: f32,         // How close to get to target
+    pub enabled: bool,
+}
+
+/// Test bot component for automated testing
+#[derive(Debug, Clone)]
+pub struct TestBot {
+    pub start_time: std::time::Instant,
+    pub test_duration: std::time::Duration,
+    pub current_waypoint: usize,
+    pub waypoints: Vec<Vec2>, // Using Vec2 directly now
+    pub enabled: bool,
 }
 
 impl TestBot {
     pub fn new(test_duration_seconds: u64) -> Self {
         let waypoints = vec![
-            TestWaypoint { x: 1.5, y: 1.5, description: "Start".to_string() },
-            TestWaypoint { x: 2.5, y: 1.5, description: "East corridor".to_string() },
-            TestWaypoint { x: 3.5, y: 1.5, description: "Continue east".to_string() },
-            TestWaypoint { x: 4.5, y: 1.5, description: "Far east".to_string() },
-            TestWaypoint { x: 5.5, y: 1.5, description: "Eastern corridor".to_string() },
-            TestWaypoint { x: 6.5, y: 1.5, description: "Near east wall".to_string() },
-            TestWaypoint { x: 7.5, y: 1.5, description: "East end".to_string() },
-            TestWaypoint { x: 8.5, y: 1.5, description: "Turn point".to_string() },
-            TestWaypoint { x: 8.5, y: 2.5, description: "Turn south".to_string() },
-            TestWaypoint { x: 8.5, y: 3.5, description: "South corridor".to_string() },
+            Vec2::new(2.5, 1.5), // First target - East corridor
+            Vec2::new(3.5, 1.5), // Continue east
+            Vec2::new(4.5, 1.5), // Far east
+            Vec2::new(5.5, 1.5), // Eastern corridor
+            Vec2::new(6.5, 1.5), // Near east wall
+            Vec2::new(7.5, 1.5), // East end
+            Vec2::new(8.5, 1.5), // Turn point
+            Vec2::new(8.5, 6.5), // Go south to safe row 6
+            Vec2::new(6.5, 6.5), // Move west in safe row 6
+            Vec2::new(3.5, 6.5), // Continue west in safe row 6
+            Vec2::new(1.5, 6.5), // West end in safe row 6
+            Vec2::new(1.5, 3.5), // Move north to middle
+            Vec2::new(1.5, 1.5), // Return to start
         ];
 
         Self {
@@ -536,7 +954,28 @@ impl TestBot {
             test_duration: std::time::Duration::from_secs(test_duration_seconds),
             current_waypoint: 0,
             waypoints,
+            enabled: true,
         }
+    }
+
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    /// Enable this component
+    pub fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    /// Disable this component
+    pub fn disable(&mut self) {
+        self.enabled = false;
+    }
+
+    /// Check if this component is enabled
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
     }
 
     pub fn get_progress(&self) -> (usize, usize, f32) {
@@ -552,8 +991,7 @@ impl TestBot {
     /// Get the current target waypoint
     pub fn get_current_target(&self) -> Option<Vec2> {
         if self.current_waypoint < self.waypoints.len() {
-            let waypoint = &self.waypoints[self.current_waypoint];
-            Some(Vec2::new(waypoint.x, waypoint.y))
+            Some(self.waypoints[self.current_waypoint])
         } else {
             None
         }
@@ -562,10 +1000,25 @@ impl TestBot {
     /// Move to the next waypoint
     pub fn advance_waypoint(&mut self) {
         self.current_waypoint = (self.current_waypoint + 1) % self.waypoints.len();
+        let waypoint = self.waypoints[self.current_waypoint];
         println!("✓ TestBot advancing to waypoint {} at ({:.2}, {:.2})", 
                  self.current_waypoint, 
-                 self.waypoints[self.current_waypoint].x, 
-                 self.waypoints[self.current_waypoint].y);
+                 waypoint.x, 
+                 waypoint.y);
+    }
+}
+
+impl Component for TestBot {
+    fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    fn disable(&mut self) {
+        self.enabled = false;
     }
 }
 
@@ -581,12 +1034,37 @@ impl Pathfinder {
             last_position: Vec2::ZERO,
             needs_recalculation: false,
             explored_nodes: Vec::new(),
-            arrival_threshold: 0.3,
+            arrival_threshold: 0.4,  // Increased for better corner navigation
+            enabled: true,
         }
+    }
+
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    /// Enable this component
+    pub fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    /// Disable this component  
+    pub fn disable(&mut self) {
+        self.enabled = false;
+    }
+
+    /// Check if this component is enabled
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
     }
 
     /// Set a new target and mark for path recalculation
     pub fn set_target(&mut self, target: Vec2) {
+        if !self.enabled {
+            return; // Don't set targets when disabled
+        }
+        
         self.target = Some(target);
         self.needs_recalculation = true;
         self.path_index = 0;
@@ -595,6 +1073,10 @@ impl Pathfinder {
 
     /// Check if we've reached the current target
     pub fn has_reached_target(&self, current_position: Vec2) -> bool {
+        if !self.enabled {
+            return false;
+        }
+        
         if let Some(target) = self.target {
             current_position.distance(target) < self.arrival_threshold
         } else {
@@ -604,6 +1086,10 @@ impl Pathfinder {
 
     /// Get the next position to move toward
     pub fn get_next_position(&self) -> Option<Vec2> {
+        if !self.enabled {
+            return None;
+        }
+        
         if self.path_index < self.current_path.len() {
             Some(self.current_path[self.path_index])
         } else {
@@ -613,6 +1099,10 @@ impl Pathfinder {
 
     /// Advance to the next step in the path
     pub fn advance_path_step(&mut self) {
+        if !self.enabled {
+            return;
+        }
+        
         if self.path_index < self.current_path.len() {
             self.path_index += 1;
         }
@@ -628,5 +1118,16 @@ impl Pathfinder {
     }
 }
 
-impl Component for TestBot {}
-impl Component for Pathfinder {} 
+impl Component for Pathfinder {
+    fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    fn disable(&mut self) {
+        self.enabled = false;
+    }
+} 

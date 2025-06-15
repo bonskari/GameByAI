@@ -15,6 +15,11 @@ pub struct PlayerInput {
     pub mouse_delta: Vec2,    // Mouse movement delta
     pub turn_delta: f32,      // Arrow key turning (fallback)
     
+    // Debug/Test inputs
+    pub toggle_pillars_pressed: bool,  // T key - Toggle middle pillars
+    pub debug_info_pressed: bool,      // F1 key - Toggle debug info
+    pub performance_test_pressed: bool,  // P key - Run performance tests
+    
     // Settings
     pub mouse_sensitivity: f32,
     pub move_speed: f32,
@@ -55,6 +60,11 @@ impl InputHandler {
         
         // Capture jump input
         input.jump_pressed = is_key_pressed(KeyCode::Space);
+        
+        // Capture debug/test inputs
+        input.toggle_pillars_pressed = is_key_pressed(KeyCode::T);
+        input.debug_info_pressed = is_key_pressed(KeyCode::F1);
+        input.performance_test_pressed = is_key_pressed(KeyCode::P);
         
         // Capture mouse look
         input.mouse_delta = mouse_delta_position();

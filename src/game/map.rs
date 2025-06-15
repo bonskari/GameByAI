@@ -385,4 +385,129 @@ impl Map {
             }
         }
     }
+    
+    /// Enhanced minimap with colored visualization for debugging pathfinding
+    pub fn draw_enhanced_minimap(&self, offset_x: f32, offset_y: f32, tile_size: f32, 
+                                player_pos: Option<(f32, f32)>, 
+                                target_pos: Option<(f32, f32)>,
+                                path: Option<&Vec<macroquad::math::Vec2>>,
+                                explored_nodes: Option<&Vec<(i32, i32)>>) {
+        
+        // Draw base map with distinct colors for each wall type
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let screen_x = offset_x + x as f32 * tile_size;
+                let screen_y = offset_y + y as f32 * tile_size;
+                
+                let wall_type = self.get_wall_type(x as i32, y as i32);
+                let color = match wall_type {
+                    WallType::Empty => Color::new(0.1, 0.1, 0.1, 1.0),        // Dark gray for walkable areas
+                    WallType::TechPanel => Color::new(0.8, 0.8, 0.9, 1.0),    // Light blue-white for tech panels
+                    WallType::HullPlating => Color::new(0.6, 0.6, 0.7, 1.0),  // Gray for hull plating
+                    WallType::ControlSystem => Color::new(0.2, 0.4, 0.8, 1.0), // Blue for control systems
+                    WallType::EnergyConduit => Color::new(0.8, 0.4, 0.2, 1.0), // Orange for energy conduits
+                };
+                
+                draw_rectangle(screen_x, screen_y, tile_size, tile_size, color);
+                
+                // Draw grid lines for clarity
+                draw_rectangle_lines(screen_x, screen_y, tile_size, tile_size, 1.0, 
+                                   Color::new(0.3, 0.3, 0.3, 0.5));
+            }
+        }
+        
+        // Draw explored nodes from A* pathfinding (light yellow)
+        if let Some(explored) = explored_nodes {
+            for &(x, y) in explored {
+                if x >= 0 && y >= 0 && x < self.width as i32 && y < self.height as i32 {
+                    let screen_x = offset_x + x as f32 * tile_size;
+                    let screen_y = offset_y + y as f32 * tile_size;
+                    draw_rectangle(screen_x + 2.0, screen_y + 2.0, tile_size - 4.0, tile_size - 4.0, 
+                                 Color::new(1.0, 1.0, 0.3, 0.6)); // Light yellow with transparency
+                }
+            }
+        }
+        
+        // Draw pathfinding path (bright green line)
+        if let Some(path_points) = path {
+            for i in 0..path_points.len().saturating_sub(1) {
+                let start = path_points[i];
+                let end = path_points[i + 1];
+                
+                let start_screen_x = offset_x + start.x * tile_size;
+                let start_screen_y = offset_y + start.y * tile_size;
+                let end_screen_x = offset_x + end.x * tile_size;
+                let end_screen_y = offset_y + end.y * tile_size;
+                
+                draw_line(start_screen_x, start_screen_y, end_screen_x, end_screen_y, 3.0, GREEN);
+                
+                // Draw path point markers
+                draw_circle(start_screen_x, start_screen_y, 3.0, LIME);
+            }
+            
+            // Draw final path point
+            if let Some(last_point) = path_points.last() {
+                let screen_x = offset_x + last_point.x * tile_size;
+                let screen_y = offset_y + last_point.y * tile_size;
+                draw_circle(screen_x, screen_y, 3.0, LIME);
+            }
+        }
+        
+        // Draw target position (bright red circle)
+        if let Some((target_x, target_y)) = target_pos {
+            let screen_x = offset_x + target_x * tile_size;
+            let screen_y = offset_y + target_y * tile_size;
+            draw_circle(screen_x, screen_y, 6.0, RED);
+            draw_circle_lines(screen_x, screen_y, 8.0, 2.0, Color::new(0.5, 0.0, 0.0, 1.0)); // Dark red
+            
+            // Draw target label
+            draw_text("TARGET", screen_x - 15.0, screen_y - 12.0, 12.0, RED);
+        }
+        
+        // Draw player position (bright blue circle)
+        if let Some((player_x, player_y)) = player_pos {
+            let screen_x = offset_x + player_x * tile_size;
+            let screen_y = offset_y + player_y * tile_size;
+            draw_circle(screen_x, screen_y, 5.0, BLUE);
+            draw_circle_lines(screen_x, screen_y, 7.0, 2.0, DARKBLUE);
+            
+            // Draw player label
+            draw_text("PLAYER", screen_x - 18.0, screen_y - 12.0, 12.0, BLUE);
+        }
+        
+        // Draw legend
+        let legend_x = offset_x + self.width as f32 * tile_size + 20.0;
+        let legend_y = offset_y;
+        
+        draw_text("MINIMAP LEGEND:", legend_x, legend_y + 15.0, 14.0, WHITE);
+        
+        // Wall type legend
+        draw_rectangle(legend_x, legend_y + 25.0, 15.0, 15.0, Color::new(0.8, 0.8, 0.9, 1.0));
+        draw_text("Tech Panel", legend_x + 20.0, legend_y + 37.0, 12.0, WHITE);
+        
+        draw_rectangle(legend_x, legend_y + 45.0, 15.0, 15.0, Color::new(0.6, 0.6, 0.7, 1.0));
+        draw_text("Hull Plating", legend_x + 20.0, legend_y + 57.0, 12.0, WHITE);
+        
+        draw_rectangle(legend_x, legend_y + 65.0, 15.0, 15.0, Color::new(0.2, 0.4, 0.8, 1.0));
+        draw_text("Control System", legend_x + 20.0, legend_y + 77.0, 12.0, WHITE);
+        
+        draw_rectangle(legend_x, legend_y + 85.0, 15.0, 15.0, Color::new(0.8, 0.4, 0.2, 1.0));
+        draw_text("Energy Conduit", legend_x + 20.0, legend_y + 97.0, 12.0, WHITE);
+        
+        draw_rectangle(legend_x, legend_y + 105.0, 15.0, 15.0, Color::new(0.1, 0.1, 0.1, 1.0));
+        draw_text("Walkable Area", legend_x + 20.0, legend_y + 117.0, 12.0, WHITE);
+        
+        // Pathfinding legend
+        draw_circle(legend_x + 7.0, legend_y + 137.0, 5.0, BLUE);
+        draw_text("Player", legend_x + 20.0, legend_y + 142.0, 12.0, WHITE);
+        
+        draw_circle(legend_x + 7.0, legend_y + 152.0, 5.0, RED);
+        draw_text("Target", legend_x + 20.0, legend_y + 157.0, 12.0, WHITE);
+        
+        draw_line(legend_x, legend_y + 167.0, legend_x + 15.0, legend_y + 167.0, 3.0, GREEN);
+        draw_text("Path", legend_x + 20.0, legend_y + 172.0, 12.0, WHITE);
+        
+        draw_rectangle(legend_x, legend_y + 182.0, 15.0, 15.0, Color::new(1.0, 1.0, 0.3, 0.6));
+        draw_text("Explored", legend_x + 20.0, legend_y + 194.0, 12.0, WHITE);
+    }
 } 

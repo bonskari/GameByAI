@@ -163,6 +163,21 @@ impl World {
         self.entities = EntityManager::new();
     }
     
+    /// Check if a component should be processed by systems
+    /// Returns true only if the entity is valid AND the component exists AND the component is enabled
+    pub fn should_process_component<T: crate::ecs::Component>(&self, entity: Entity) -> bool {
+        if !self.is_valid(entity) {
+            return false;
+        }
+        
+        // Check if component exists and is enabled
+        if let Some(component) = self.get::<T>(entity) {
+            component.is_enabled()
+        } else {
+            false // Component doesn't exist
+        }
+    }
+    
     /// Get multiple mutable component references for the same entity
     /// This is safe because we're getting different component types for the same entity
     pub fn get_mut_pair<T1: Component + 'static, T2: Component + 'static>(&mut self, entity: Entity) -> (Option<&mut T1>, Option<&mut T2>) {

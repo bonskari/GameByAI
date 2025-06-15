@@ -92,22 +92,28 @@ impl Modern3DRenderer {
         let mut floor_count = 0;
         let mut ceiling_count = 0;
         
-        // Render walls
-        for (_entity, transform, static_renderer, _wall) in world.query_3::<Transform, StaticRenderer, Wall>() {
-            self.render_static_entity(transform, static_renderer);
-            wall_count += 1;
+        // Render walls (only if entity is enabled and components are enabled)
+        for (entity, transform, static_renderer, _wall) in world.query_3::<Transform, StaticRenderer, Wall>() {
+            if world.is_valid(entity) && entity.enabled && static_renderer.is_enabled() && transform.is_enabled() {
+                self.render_static_entity(transform, static_renderer);
+                wall_count += 1;
+            }
         }
         
-        // Render floors
-        for (_entity, transform, static_renderer, _floor) in world.query_3::<Transform, StaticRenderer, Floor>() {
-            self.render_static_entity(transform, static_renderer);
-            floor_count += 1;
+        // Render floors (only if entity is enabled and components are enabled)
+        for (entity, transform, static_renderer, _floor) in world.query_3::<Transform, StaticRenderer, Floor>() {
+            if world.is_valid(entity) && entity.enabled && static_renderer.is_enabled() && transform.is_enabled() {
+                self.render_static_entity(transform, static_renderer);
+                floor_count += 1;
+            }
         }
         
-        // Render ceilings
-        for (_entity, transform, static_renderer, _ceiling) in world.query_3::<Transform, StaticRenderer, Ceiling>() {
-            self.render_static_entity(transform, static_renderer);
-            ceiling_count += 1;
+        // Render ceilings (only if entity is enabled and components are enabled)
+        for (entity, transform, static_renderer, _ceiling) in world.query_3::<Transform, StaticRenderer, Ceiling>() {
+            if world.is_valid(entity) && entity.enabled && static_renderer.is_enabled() && transform.is_enabled() {
+                self.render_static_entity(transform, static_renderer);
+                ceiling_count += 1;
+            }
         }
         
         // Reset to default camera after ECS rendering
