@@ -37,7 +37,7 @@ impl InputHandler {
     /// Create a new input handler with default settings
     pub fn new() -> Self {
         Self {
-            base_mouse_sensitivity: 5.0,  // Default sensitivity of 5.0 (5x more sensitive than original)
+            base_mouse_sensitivity: 8.0,  // Increased sensitivity for more responsive controls
             move_speed: 2.0,
             turn_speed: 3.0,
         }

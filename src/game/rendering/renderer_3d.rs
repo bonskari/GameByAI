@@ -22,7 +22,7 @@ impl Modern3DRenderer {
             position: vec3(1.5, 1.0, 1.5),
             up: vec3(0.0, 1.0, 0.0),
             target: vec3(2.0, 1.0, 1.5),
-            fovy: 75.0,  // 75 degrees FOV for a balanced gaming experience
+            fovy: 1.31,  // 1.31 radians (75.0 degrees) - macroquad expects radians
             ..Default::default()
         };
 
@@ -39,30 +39,35 @@ impl Modern3DRenderer {
         println!("Loading textures from disk...");
         
         // Try to load wall textures
-        if let Ok(texture) = load_texture("assets/textures/tech_panel.png").await {
+        if let Ok(mut texture) = load_texture("assets/textures/tech_panel.png").await {
+            texture.set_filter(FilterMode::Nearest);
             self.wall_textures.insert(WallType::TechPanel, texture);
             println!("Loaded tech_panel.png");
         }
-        if let Ok(texture) = load_texture("assets/textures/hull_plating.png").await {
+        if let Ok(mut texture) = load_texture("assets/textures/hull_plating.png").await {
+            texture.set_filter(FilterMode::Nearest);
             self.wall_textures.insert(WallType::HullPlating, texture);
             println!("Loaded hull_plating.png");
         }
-        if let Ok(texture) = load_texture("assets/textures/control_system.png").await {
+        if let Ok(mut texture) = load_texture("assets/textures/control_system.png").await {
+            texture.set_filter(FilterMode::Nearest);
             self.wall_textures.insert(WallType::ControlSystem, texture);
             println!("Loaded control_system.png");
         }
-        if let Ok(texture) = load_texture("assets/textures/energy_conduit.png").await {
+        if let Ok(mut texture) = load_texture("assets/textures/energy_conduit.png").await {
+            texture.set_filter(FilterMode::Nearest);
             self.wall_textures.insert(WallType::EnergyConduit, texture);
             println!("Loaded energy_conduit.png");
         }
         
         // Try to load floor and ceiling textures
         if let Ok(mut texture) = load_texture("assets/textures/floor.png").await {
-            texture.set_filter(FilterMode::Linear);
+            texture.set_filter(FilterMode::Nearest);
             self.floor_texture = Some(texture);
-            println!("Loaded floor.png with linear filtering");
+            println!("Loaded floor.png with nearest filtering (sharp)");
         }
-        if let Ok(texture) = load_texture("assets/textures/ceiling.png").await {
+        if let Ok(mut texture) = load_texture("assets/textures/ceiling.png").await {
+            texture.set_filter(FilterMode::Nearest);
             self.ceiling_texture = Some(texture);
             println!("Loaded ceiling.png");
         }

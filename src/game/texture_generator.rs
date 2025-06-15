@@ -68,7 +68,7 @@ impl TextureGenerator {
         
         // Load texture from file
         let texture = load_texture(&file_path).await.map_err(|e| format!("Failed to load {}: {}", file_path, e))?;
-        texture.set_filter(FilterMode::Linear);
+        texture.set_filter(FilterMode::Nearest);
         
         self.textures.insert(name.to_string(), texture);
         Ok(())
