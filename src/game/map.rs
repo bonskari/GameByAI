@@ -217,61 +217,34 @@ impl Map {
         self.get_procedural_texture_color(wall_type, is_vertical, wall_x_offset, 0.5)
     }
     
-    /// Get sci-fi space station floor texture with deck plating and light strips
+    /// Get pixel art style floor texture with clean, flat colors
     pub fn get_floor_texture_color(&self, x: f32, y: f32) -> Color {
-        // Create technical deck plating pattern
-        let plate_size = 2.0; // Size of each deck plate
-        let plate_x = (x / plate_size) % 1.0;
-        let plate_y = (y / plate_size) % 1.0;
+        // Create pixel art style floor pattern with larger, cleaner tiles
+        let tile_size = 1.0; // Smaller tiles for more detail
+        let tile_x = (x / tile_size).floor() % 4.0; // 4x4 pattern
+        let tile_y = (y / tile_size).floor() % 4.0;
         
-        // Base deck color - dark metallic
-        let mut base_color = Color::new(0.25, 0.28, 0.32, 1.0); // Dark metallic blue-gray
+        // Pixel art color palette - flat colors, no gradients
+        let dark_gray = Color::new(0.2, 0.22, 0.25, 1.0);    // Main floor
+        let light_gray = Color::new(0.35, 0.37, 0.4, 1.0);   // Accent tiles
+        let very_dark = Color::new(0.1, 0.12, 0.15, 1.0);    // Seams/borders
+        let blue_accent = Color::new(0.15, 0.25, 0.4, 1.0);  // Tech accents
         
-        // Deck plate seams
-        let seam_width = 0.03;
-        let has_seam = plate_x < seam_width || plate_x > 1.0 - seam_width ||
-                      plate_y < seam_width || plate_y > 1.0 - seam_width;
-        
-        // Grating pattern within plates
-        let grating_spacing = 0.15;
-        let grating_x = (plate_x / grating_spacing) % 1.0;
-        let grating_y = (plate_y / grating_spacing) % 1.0;
-        let has_grating = (grating_x < 0.1 && grating_y > 0.1 && grating_y < 0.9) ||
-                         (grating_y < 0.1 && grating_x > 0.1 && grating_x < 0.9);
-        
-        // LED light strips along plate edges
-        let light_strip_width = 0.015;
-        let has_light_strip = (plate_x > 0.48 && plate_x < 0.48 + light_strip_width) ||
-                             (plate_y > 0.48 && plate_y < 0.48 + light_strip_width);
-        
-        if has_light_strip {
-            // Bright LED light strips - cyan/blue glow
-            let light_intensity = ((x + y) * 20.0).sin() * 0.3 + 0.7; // Subtle pulsing
-            base_color.r = (base_color.r + light_intensity * 0.3).min(1.0);
-            base_color.g = (base_color.g + light_intensity * 0.5).min(1.0);
-            base_color.b = (base_color.b + light_intensity * 0.8).min(1.0);
-        } else if has_seam {
-            // Dark deck seams
-            base_color.r *= 0.4;
-            base_color.g *= 0.4;
-            base_color.b *= 0.4;
-        } else if has_grating {
-            // Darker grating for ventilation/drainage
-            base_color.r *= 0.6;
-            base_color.g *= 0.6;
-            base_color.b *= 0.6;
-        } else {
-            // Deck surface with subtle wear patterns
-            let wear_pattern = ((x * 43.0).sin() * (y * 47.0).cos()) * 0.08;
-            let scuff_marks = ((x * 157.0).sin() * (y * 163.0).cos()).abs();
-            let scuff_effect = if scuff_marks > 0.9 { -0.05 } else { 0.0 };
+        // Create a simple pixel art pattern
+        match (tile_x as i32, tile_y as i32) {
+            // Corner accent tiles
+            (0, 0) | (3, 0) | (0, 3) | (3, 3) => blue_accent,
             
-            base_color.r = (base_color.r + wear_pattern + scuff_effect).clamp(0.0, 1.0);
-            base_color.g = (base_color.g + wear_pattern + scuff_effect).clamp(0.0, 1.0);
-            base_color.b = (base_color.b + wear_pattern + scuff_effect).clamp(0.0, 1.0);
+            // Border tiles
+            (0, _) | (3, _) | (_, 0) | (_, 3) => very_dark,
+            
+            // Center cross pattern
+            (1, 1) | (2, 2) => light_gray,
+            (1, 2) | (2, 1) => light_gray,
+            
+            // Default floor tiles
+            _ => dark_gray,
         }
-        
-        base_color
     }
     
     /// Get sci-fi space station ceiling with advanced lighting and ventilation systems

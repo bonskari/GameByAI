@@ -31,6 +31,10 @@ async fn run_game() {
     }
     
     let mut game_state = GameState::new();
+    
+    // Load textures (Step 1: Just load them, don't use them yet)
+    game_state.modern_3d_renderer.load_textures().await;
+    
     let mut frame_counter = 0;
     
     loop {

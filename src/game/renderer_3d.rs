@@ -14,6 +14,10 @@ pub struct Modern3DRenderer {
     floor_mesh: Option<Mesh>,
     ceiling_mesh: Option<Mesh>,
     needs_rebuild: bool,
+    // Texture storage (not used yet, just added for future use)
+    wall_textures: HashMap<WallType, Texture2D>,
+    floor_texture: Option<Texture2D>,
+    ceiling_texture: Option<Texture2D>,
 }
 
 impl Modern3DRenderer {
@@ -29,7 +33,46 @@ impl Modern3DRenderer {
             floor_mesh: None,
             ceiling_mesh: None,
             needs_rebuild: true,
+            // Initialize empty texture storage
+            wall_textures: HashMap::new(),
+            floor_texture: None,
+            ceiling_texture: None,
         }
+    }
+
+    /// Load textures from disk (doesn't affect current rendering yet)
+    pub async fn load_textures(&mut self) {
+        println!("Loading textures from disk...");
+        
+        // Try to load wall textures
+        if let Ok(texture) = load_texture("assets/textures/tech_panel.png").await {
+            self.wall_textures.insert(WallType::TechPanel, texture);
+            println!("Loaded tech_panel.png");
+        }
+        if let Ok(texture) = load_texture("assets/textures/hull_plating.png").await {
+            self.wall_textures.insert(WallType::HullPlating, texture);
+            println!("Loaded hull_plating.png");
+        }
+        if let Ok(texture) = load_texture("assets/textures/control_system.png").await {
+            self.wall_textures.insert(WallType::ControlSystem, texture);
+            println!("Loaded control_system.png");
+        }
+        if let Ok(texture) = load_texture("assets/textures/energy_conduit.png").await {
+            self.wall_textures.insert(WallType::EnergyConduit, texture);
+            println!("Loaded energy_conduit.png");
+        }
+        
+        // Try to load floor and ceiling textures
+        if let Ok(texture) = load_texture("assets/textures/floor.png").await {
+            self.floor_texture = Some(texture);
+            println!("Loaded floor.png");
+        }
+        if let Ok(texture) = load_texture("assets/textures/ceiling.png").await {
+            self.ceiling_texture = Some(texture);
+            println!("Loaded ceiling.png");
+        }
+        
+        println!("Texture loading complete. Still using procedural rendering.");
     }
 
     pub fn build_geometry(&mut self, map: &Map) {
@@ -63,7 +106,7 @@ impl Modern3DRenderer {
             });
         }
 
-        self.floor_mesh = Some(Self::create_floor_plane(map));
+        self.floor_mesh = Some(self.create_floor_plane(map));
         self.ceiling_mesh = Some(Self::create_ceiling_plane(map));
 
         self.needs_rebuild = false;
@@ -167,7 +210,7 @@ impl Modern3DRenderer {
         });
     }
 
-    fn create_floor_plane(map: &Map) -> Mesh {
+    fn create_floor_plane(&self, map: &Map) -> Mesh {
         let mut vertices = Vec::new();
         let mut indices = Vec::new();
         for y in 0..map.height {
@@ -175,60 +218,46 @@ impl Modern3DRenderer {
                 let fx = x as f32;
                 let fz = y as f32;
                 let base = vertices.len() as u16;
-                let c1 = map.get_floor_texture_color(fx, fz);
-                let c2 = map.get_floor_texture_color(fx + 1.0, fz);
-                let c3 = map.get_floor_texture_color(fx + 1.0, fz + 1.0);
-                let c4 = map.get_floor_texture_color(fx, fz + 1.0);
+                
+                // Use world coordinates for UV mapping to create natural tiling
+                // This makes the texture repeat every 1 world unit
                 vertices.extend_from_slice(&[
                     Vertex {
                         position: vec3(fx, 0.0, fz),
-                        uv: vec2(0.0, 0.0),
-                        color: [
-                            (c1.r * 255.0) as u8,
-                            (c1.g * 255.0) as u8,
-                            (c1.b * 255.0) as u8,
-                            255
-                        ],
+                        uv: vec2(fx, fz),  // World coordinates for tiling
+                        color: [255, 255, 255, 255],  // White to let texture show through
                         normal: vec4(0.0, 1.0, 0.0, 0.0),
                     },
                     Vertex {
                         position: vec3(fx + 1.0, 0.0, fz),
-                        uv: vec2(1.0, 0.0),
-                        color: [
-                            (c2.r * 255.0) as u8,
-                            (c2.g * 255.0) as u8,
-                            (c2.b * 255.0) as u8,
-                            255
-                        ],
+                        uv: vec2(fx + 1.0, fz),  // World coordinates for tiling
+                        color: [255, 255, 255, 255],  // White to let texture show through
                         normal: vec4(0.0, 1.0, 0.0, 0.0),
                     },
                     Vertex {
                         position: vec3(fx + 1.0, 0.0, fz + 1.0),
-                        uv: vec2(1.0, 1.0),
-                        color: [
-                            (c3.r * 255.0) as u8,
-                            (c3.g * 255.0) as u8,
-                            (c3.b * 255.0) as u8,
-                            255
-                        ],
+                        uv: vec2(fx + 1.0, fz + 1.0),  // World coordinates for tiling
+                        color: [255, 255, 255, 255],  // White to let texture show through
                         normal: vec4(0.0, 1.0, 0.0, 0.0),
                     },
                     Vertex {
                         position: vec3(fx, 0.0, fz + 1.0),
-                        uv: vec2(0.0, 1.0),
-                        color: [
-                            (c4.r * 255.0) as u8,
-                            (c4.g * 255.0) as u8,
-                            (c4.b * 255.0) as u8,
-                            255
-                        ],
+                        uv: vec2(fx, fz + 1.0),  // World coordinates for tiling
+                        color: [255, 255, 255, 255],  // White to let texture show through
                         normal: vec4(0.0, 1.0, 0.0, 0.0),
                     },
                 ]);
                 indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
             }
         }
-        Mesh { vertices, indices, texture: None }
+        // Use the loaded floor texture instead of None
+        let texture = self.floor_texture.clone();
+        if texture.is_some() {
+            println!("Floor mesh created with texture");
+        } else {
+            println!("Floor mesh created WITHOUT texture - falling back to vertex colors");
+        }
+        Mesh { vertices, indices, texture }
     }
 
     fn create_ceiling_plane(map: &Map) -> Mesh {
@@ -309,22 +338,60 @@ impl Modern3DRenderer {
     }
 
     pub fn render(&mut self, map: &Map, player: &Player) {
-        self.build_geometry(map);
         self.update_camera(player);
         set_camera(&self.camera);
-        gl_use_default_material();
         clear_background(DARKGRAY);
 
-        for mesh in self.wall_meshes.values() {
-            draw_mesh(mesh);
-        }
-        if let Some(ref mesh) = self.floor_mesh {
-            draw_mesh(mesh);
-        }
-        if let Some(ref mesh) = self.ceiling_mesh {
-            draw_mesh(mesh);
-        }
+        // Simple direct 3D rendering instead of mesh system
+        self.render_simple_3d(map);
+        
         set_default_camera();
+    }
+
+    fn render_simple_3d(&self, map: &Map) {
+        // Draw floor using loaded texture
+        for y in 0..map.height {
+            for x in 0..map.width {
+                // Use loaded floor texture if available, otherwise fall back to color
+                let (texture, color) = if let Some(floor_texture) = &self.floor_texture {
+                    (Some(floor_texture), WHITE)
+                } else {
+                    (None, map.get_floor_texture_color(x as f32 + 0.5, y as f32 + 0.5))
+                };
+                
+                // Draw floor as a very thin textured cube
+                draw_cube(
+                    vec3(x as f32 + 0.5, 0.0, y as f32 + 0.5),
+                    vec3(1.0, 0.01, 1.0), // Very thin cube (0.01 height)
+                    texture,
+                    color,
+                );
+            }
+        }
+
+        // Draw walls using loaded textures
+        for y in 0..map.height {
+            for x in 0..map.width {
+                if map.is_wall(x as i32, y as i32) {
+                    let wall_type = map.get_wall_type(x as i32, y as i32);
+                    
+                    // Use loaded wall texture if available, otherwise fall back to color
+                    let (texture, color) = if let Some(wall_texture) = self.wall_textures.get(&wall_type) {
+                        (Some(wall_texture), WHITE)
+                    } else {
+                        (None, map.get_wall_color(wall_type, true))
+                    };
+                    
+                    // Draw wall as a textured cube
+                    draw_cube(
+                        vec3(x as f32 + 0.5, 1.0, y as f32 + 0.5),
+                        vec3(1.0, 2.0, 1.0),
+                        texture,
+                        color,
+                    );
+                }
+            }
+        }
     }
 
     pub fn mark_dirty(&mut self) {
