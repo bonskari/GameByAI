@@ -2,7 +2,7 @@
 
 use macroquad::prelude::*;
 use crate::ecs::*;
-use super::map::Map;
+use super::map::{Map, WallType};
 use super::input::PlayerInput;
 
 /// ECS-based game state
@@ -33,13 +33,76 @@ impl EcsGameState {
             .with(Collider::player())
             .build();
         
-        Self {
+        let map = Map::new();
+        
+        let mut ecs_state = Self {
             world,
             systems,
             player_entity: Some(player_entity),
-            map: Map::new(),
+            map,
             frame_count: 0,
+        };
+        
+        // Populate the world with static geometry entities
+        ecs_state.populate_static_geometry();
+        
+        ecs_state
+    }
+    
+    /// Populate the ECS world with wall, floor, and ceiling entities using StaticRenderer
+    fn populate_static_geometry(&mut self) {
+        let mut wall_count = 0;
+        let mut floor_count = 0;
+        let mut ceiling_count = 0;
+        
+        // Create floor entities for the entire map
+        for y in 0..self.map.height {
+            for x in 0..self.map.width {
+                // Floor entity at each position
+                self.world.spawn()
+                    .with(Transform::new(Vec3::new(x as f32 + 0.5, 0.0, y as f32 + 0.5)))
+                    .with(StaticRenderer::floor("floor.png".to_string()))
+                    .with(Floor)
+                    .build();
+                floor_count += 1;
+                
+                // Ceiling entity at each position
+                self.world.spawn()
+                    .with(Transform::new(Vec3::new(x as f32 + 0.5, 2.0, y as f32 + 0.5)))
+                    .with(StaticRenderer::ceiling("ceiling.png".to_string()))
+                    .with(Ceiling)
+                    .build();
+                ceiling_count += 1;
+            }
         }
+        
+        // Create wall entities where walls exist in the map
+        for y in 0..self.map.height {
+            for x in 0..self.map.width {
+                if self.map.is_wall(x as i32, y as i32) {
+                    let wall_type = self.map.get_wall_type(x as i32, y as i32);
+                    let texture_name = match wall_type {
+                        WallType::Empty => continue, // Skip empty tiles
+                        WallType::TechPanel => "tech_panel.png",
+                        WallType::HullPlating => "hull_plating.png", 
+                        WallType::ControlSystem => "control_system.png",
+                        WallType::EnergyConduit => "energy_conduit.png",
+                    };
+                    
+                    // Wall entity
+                    self.world.spawn()
+                        .with(Transform::new(Vec3::new(x as f32 + 0.5, 1.0, y as f32 + 0.5)))
+                        .with(StaticRenderer::wall(texture_name.to_string()))
+                        .with(Collider::wall())
+                        .with(Wall)
+                        .build();
+                    wall_count += 1;
+                }
+            }
+        }
+        
+        println!("ECS: Populated world with {} walls, {} floors, {} ceilings ({} total entities)", 
+                 wall_count, floor_count, ceiling_count, wall_count + floor_count + ceiling_count + 1); // +1 for player
     }
     
     /// Update the ECS game state with centralized input

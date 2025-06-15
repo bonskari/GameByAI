@@ -4,6 +4,7 @@ use macroquad::prelude::*;
 use crate::game::rendering::MaterialManager;
 use crate::game::{Map, Player};
 use crate::game::map::WallType;
+use crate::ecs::{World, Transform, StaticRenderer, Wall, Floor, Ceiling};
 use std::collections::HashMap;
 
 /// Modern 3D renderer with clean separation of concerns
@@ -281,27 +282,31 @@ impl Modern3DRenderer {
     }
 
     /// Render the 3D scene using mesh system
-    pub fn render(&mut self, map: &Map, player: &Player) {
-        // Build geometry if needed
-        self.build_geometry(map);
+    pub fn render(&mut self, map: &Map, player: &Player, render_legacy: bool) {
+        // Build geometry if needed (only for legacy rendering)
+        if render_legacy {
+            self.build_geometry(map);
+        }
         
         self.update_camera(player);
         set_camera(&self.camera);
         clear_background(DARKGRAY);
 
-        // Render floor mesh
-        if let Some(floor_mesh) = &self.floor_mesh {
-            draw_mesh(floor_mesh);
-        }
+        if render_legacy {
+            // Render floor mesh
+            if let Some(floor_mesh) = &self.floor_mesh {
+                draw_mesh(floor_mesh);
+            }
 
-        // Render wall meshes
-        for (_wall_type, mesh) in &self.wall_meshes {
-            draw_mesh(mesh);
-        }
+            // Render wall meshes
+            for (_wall_type, mesh) in &self.wall_meshes {
+                draw_mesh(mesh);
+            }
 
-        // Render ceiling mesh
-        if let Some(ceiling_mesh) = &self.ceiling_mesh {
-            draw_mesh(ceiling_mesh);
+            // Render ceiling mesh
+            if let Some(ceiling_mesh) = &self.ceiling_mesh {
+                draw_mesh(ceiling_mesh);
+            }
         }
         
         set_default_camera();
@@ -320,5 +325,73 @@ impl Modern3DRenderer {
     /// Mark geometry as needing rebuild
     pub fn mark_dirty(&mut self) {
         self.needs_rebuild = true;
+    }
+
+    /// Render ECS entities with StaticRenderer components
+    pub fn render_ecs_entities(&mut self, world: &World) {
+        // Set the 3D camera for ECS rendering
+        set_camera(&self.camera);
+        
+        let mut wall_count = 0;
+        let mut floor_count = 0;
+        let mut ceiling_count = 0;
+        
+        // Render walls
+        for (_entity, transform, static_renderer, _wall) in world.query_3::<Transform, StaticRenderer, Wall>() {
+            self.render_static_entity(transform, static_renderer);
+            wall_count += 1;
+        }
+        
+        // Render floors
+        for (_entity, transform, static_renderer, _floor) in world.query_3::<Transform, StaticRenderer, Floor>() {
+            self.render_static_entity(transform, static_renderer);
+            floor_count += 1;
+        }
+        
+        // Render ceilings
+        for (_entity, transform, static_renderer, _ceiling) in world.query_3::<Transform, StaticRenderer, Ceiling>() {
+            self.render_static_entity(transform, static_renderer);
+            ceiling_count += 1;
+        }
+        
+        // Reset to default camera after ECS rendering
+        set_default_camera();
+        
+        // Print occasionally to avoid spam
+        static mut FRAME_COUNT: u32 = 0;
+        unsafe {
+            FRAME_COUNT += 1;
+            if FRAME_COUNT % 300 == 0 { // Print every 5 seconds at 60 FPS
+                println!("ECS Rendering: {} walls, {} floors, {} ceilings", wall_count, floor_count, ceiling_count);
+            }
+        }
+    }
+    
+    /// Render a single static entity
+    fn render_static_entity(&self, transform: &Transform, static_renderer: &StaticRenderer) {
+        if !static_renderer.visible {
+            return;
+        }
+        
+        // Use proper scaling to match legacy system (1x1 grid units) with muted colors
+        let (size, color) = match &static_renderer.material_type {
+            crate::ecs::MaterialType::Wall { .. } => (Vec3::new(1.0, 2.0, 1.0), Color::new(0.6, 0.2, 0.6, 1.0)), // Muted purple walls
+            crate::ecs::MaterialType::Floor { .. } => (Vec3::new(1.0, 0.05, 1.0), Color::new(0.2, 0.6, 0.2, 1.0)), // Muted green floors
+            crate::ecs::MaterialType::Ceiling { .. } => (Vec3::new(1.0, 0.05, 1.0), Color::new(0.6, 0.4, 0.2, 1.0)), // Muted orange ceilings
+            crate::ecs::MaterialType::Prop { .. } => (Vec3::new(0.5, 1.0, 0.5), Color::new(0.6, 0.6, 0.2, 1.0)),
+        };
+        
+        // Debug: Print first few entity positions to see if this method is called
+        static mut DEBUG_COUNT: u32 = 0;
+        unsafe {
+            DEBUG_COUNT += 1;
+            if DEBUG_COUNT <= 3 {
+                println!("Drawing cube at: ({:.1}, {:.1}, {:.1}) size: ({:.1}, {:.1}, {:.1}) color: ({:.1}, {:.1}, {:.1})", 
+                         transform.position.x, transform.position.y, transform.position.z,
+                         size.x, size.y, size.z, color.r, color.g, color.b);
+            }
+        }
+        
+        draw_cube(transform.position, size, static_renderer.texture.as_ref(), color);
     }
 } 

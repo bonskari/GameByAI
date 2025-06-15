@@ -123,7 +123,13 @@ impl GameState {
         
         if self.view_mode_3d {
             // Draw modern 3D view with GPU acceleration
-            self.modern_3d_renderer.render(&self.map, &current_player);
+            // Only render legacy geometry when NOT using ECS
+            self.modern_3d_renderer.render(&self.map, &current_player, !self.use_ecs);
+            
+            // If using ECS, render ECS entities instead
+            if self.use_ecs {
+                self.modern_3d_renderer.render_ecs_entities(&self.ecs_state.world);
+            }
             
             // Draw minimap in top-right corner during 3D mode
             self.draw_minimap(&current_player);

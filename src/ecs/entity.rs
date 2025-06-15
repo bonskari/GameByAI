@@ -104,6 +104,22 @@ impl EntityManager {
     pub fn active_count(&self) -> usize {
         self.next_id as usize - self.free_entities.len()
     }
+    
+    /// Get all currently valid entities
+    pub fn all_entities(&self) -> Vec<Entity> {
+        let mut entities = Vec::new();
+        
+        for id in 0..self.next_id {
+            if let Some(generation) = self.generation(id) {
+                let entity = Entity::new(id, generation);
+                if self.is_valid(entity) {
+                    entities.push(entity);
+                }
+            }
+        }
+        
+        entities
+    }
 }
 
 impl Default for EntityManager {

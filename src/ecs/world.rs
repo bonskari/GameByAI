@@ -108,6 +108,41 @@ impl World {
         &mut self.components
     }
     
+    /// Simple query for entities with 3 components (immutable)
+    pub fn query_3<T1: Component, T2: Component, T3: Component>(&self) -> Vec<(Entity, &T1, &T2, &T3)> {
+        let mut results = Vec::new();
+        
+        // Get all entities that have all three component types
+        for entity in self.entities.all_entities() {
+            if let (Some(comp1), Some(comp2), Some(comp3)) = (
+                self.get::<T1>(entity),
+                self.get::<T2>(entity), 
+                self.get::<T3>(entity)
+            ) {
+                results.push((entity, comp1, comp2, comp3));
+            }
+        }
+        
+        results
+    }
+    
+    /// Simple query for entities with 2 components (immutable)
+    pub fn query_2<T1: Component, T2: Component>(&self) -> Vec<(Entity, &T1, &T2)> {
+        let mut results = Vec::new();
+        
+        // Get all entities that have both component types
+        for entity in self.entities.all_entities() {
+            if let (Some(comp1), Some(comp2)) = (
+                self.get::<T1>(entity),
+                self.get::<T2>(entity)
+            ) {
+                results.push((entity, comp1, comp2));
+            }
+        }
+        
+        results
+    }
+    
     /// Clear all entities and components
     pub fn clear(&mut self) {
         self.components.clear();
