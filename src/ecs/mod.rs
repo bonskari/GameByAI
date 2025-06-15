@@ -7,9 +7,9 @@
 //! - Integrated rendering system
 //! - Easy parallelization
 
-pub mod world;
 pub mod entity;
 pub mod component;
+pub mod world;
 pub mod system;
 pub mod query;
 pub mod resource;
@@ -17,18 +17,20 @@ pub mod components;
 pub mod systems;
 
 // Re-export core types
+pub use entity::{Entity, EntityManager};
+pub use component::{Component, ComponentManager};
 pub use world::World;
-pub use entity::{Entity, EntityId, EntityManager};
-pub use component::{Component, ComponentStorage, ComponentManager};
 pub use system::{System, SystemManager};
-pub use query::Query;
 pub use resource::{Resource, ResourceManager};
 
-// Re-export common components
-pub use components::*;
+// Re-export game components
+pub use components::{
+    Transform, Velocity, StaticRenderer, MaterialType, Collider, ColliderShape,
+    Player, Wall, Floor, Ceiling, Prop
+};
 
-// Re-export game systems
-pub use systems::*;
+// Re-export systems
+pub use systems::{DeltaTime, MapResource};
 
 /// Type alias for component type identification
 pub type ComponentTypeId = std::any::TypeId; 

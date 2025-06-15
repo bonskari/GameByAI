@@ -2,7 +2,8 @@
 
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
-use crate::ecs::{Entity, EntityId, ComponentTypeId};
+use crate::ecs::{Entity, ComponentTypeId};
+use crate::ecs::entity::EntityId;
 
 /// Trait that all components must implement
 pub trait Component: 'static + Send + Sync {

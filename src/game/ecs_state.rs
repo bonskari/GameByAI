@@ -20,16 +20,17 @@ impl EcsGameState {
         let mut world = World::new();
         let mut systems = SystemManager::new();
         
-        // Add systems in the correct order
-        systems.add_system(PlayerMovementSystem::new());
-        systems.add_system(PhysicsSystem::new());
-        systems.add_system(CollisionSystem::new());
+        // Add systems in the correct order (commented out for now)
+        // systems.add_system(PlayerMovementSystem::new());
+        // systems.add_system(PhysicsSystem::new());
+        // systems.add_system(CollisionSystem::new());
         
-        // Create the player entity
+        // Create player entity with new component design
         let player_entity = world.spawn()
-            .with(Transform::at_position(vec3(1.5, 0.6, 1.5))) // Start position with eye height
+            .with(Transform::new(Vec3::new(1.5, 0.6, 1.5)))
             .with(Velocity::new())
             .with(Player::new())
+            .with(Collider::player())
             .build();
         
         Self {
