@@ -1,7 +1,7 @@
 //! Game-specific components for the GameByAI ECS
 
 use macroquad::prelude::*;
-use crate::ecs::{Component, World};
+use crate::ecs::Component;
 
 /// Position, rotation, and scale in 3D space
 #[derive(Debug, Clone)]
