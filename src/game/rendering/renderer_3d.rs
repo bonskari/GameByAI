@@ -373,25 +373,45 @@ impl Modern3DRenderer {
             return;
         }
         
-        // Use proper scaling to match legacy system (1x1 grid units) with muted colors
-        let (size, color) = match &static_renderer.material_type {
-            crate::ecs::MaterialType::Wall { .. } => (Vec3::new(1.0, 2.0, 1.0), Color::new(0.6, 0.2, 0.6, 1.0)), // Muted purple walls
-            crate::ecs::MaterialType::Floor { .. } => (Vec3::new(1.0, 0.05, 1.0), Color::new(0.2, 0.6, 0.2, 1.0)), // Muted green floors
-            crate::ecs::MaterialType::Ceiling { .. } => (Vec3::new(1.0, 0.05, 1.0), Color::new(0.6, 0.4, 0.2, 1.0)), // Muted orange ceilings
-            crate::ecs::MaterialType::Prop { .. } => (Vec3::new(0.5, 1.0, 0.5), Color::new(0.6, 0.6, 0.2, 1.0)),
+        // Get size and texture based on material type
+        let (size, texture) = match &static_renderer.material_type {
+            crate::ecs::MaterialType::Wall { texture_name } => {
+                let size = Vec3::new(1.0, 2.0, 1.0);
+                let texture = self.get_wall_texture_by_name(texture_name);
+                (size, texture)
+            },
+            crate::ecs::MaterialType::Floor { .. } => {
+                let size = Vec3::new(1.0, 0.05, 1.0);
+                (size, self.floor_texture.as_ref())
+            },
+            crate::ecs::MaterialType::Ceiling { .. } => {
+                let size = Vec3::new(1.0, 0.05, 1.0);
+                (size, self.ceiling_texture.as_ref())
+            },
+            crate::ecs::MaterialType::Prop { .. } => {
+                let size = Vec3::new(0.5, 1.0, 0.5);
+                // For props, we could add a prop texture later
+                (size, None)
+            },
         };
         
-        // Debug: Print first few entity positions to see if this method is called
-        static mut DEBUG_COUNT: u32 = 0;
-        unsafe {
-            DEBUG_COUNT += 1;
-            if DEBUG_COUNT <= 3 {
-                println!("Drawing cube at: ({:.1}, {:.1}, {:.1}) size: ({:.1}, {:.1}, {:.1}) color: ({:.1}, {:.1}, {:.1})", 
-                         transform.position.x, transform.position.y, transform.position.z,
-                         size.x, size.y, size.z, color.r, color.g, color.b);
-            }
-        }
+        // Use white color to let texture show through properly
+        let color = WHITE;
         
-        draw_cube(transform.position, size, static_renderer.texture.as_ref(), color);
+        draw_cube(transform.position, size, texture, color);
+    }
+    
+    /// Get wall texture by texture name
+    fn get_wall_texture_by_name(&self, texture_name: &str) -> Option<&Texture2D> {
+        // Map texture names to wall types
+        let wall_type = match texture_name {
+            "tech_panel.png" => WallType::TechPanel,
+            "hull_plating.png" => WallType::HullPlating,
+            "control_system.png" => WallType::ControlSystem,
+            "energy_conduit.png" => WallType::EnergyConduit,
+            _ => return None,
+        };
+        
+        self.wall_textures.get(&wall_type)
     }
 } 
