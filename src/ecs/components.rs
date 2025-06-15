@@ -482,4 +482,69 @@ impl Component for Ceiling {}
 #[derive(Debug, Clone)]
 pub struct Prop;
 
-impl Component for Prop {} 
+impl Component for Prop {}
+
+/// Test bot component for automated testing
+#[derive(Debug, Clone)]
+pub struct TestBot {
+    pub start_time: std::time::Instant,
+    pub test_duration: std::time::Duration,
+    pub current_waypoint: usize,
+    pub waypoints: Vec<TestWaypoint>,
+    pub movement_speed: f32,
+    pub rotation_speed: f32,
+    pub stuck_time: f32,
+    pub last_position: (f32, f32),
+    pub explored_nodes: Vec<(i32, i32)>,
+    pub path_nodes: Vec<(i32, i32)>,
+}
+
+/// Waypoint for test bot navigation
+#[derive(Debug, Clone)]
+pub struct TestWaypoint {
+    pub x: f32,
+    pub y: f32,
+    pub description: String,
+}
+
+impl TestBot {
+    pub fn new(test_duration_seconds: u64) -> Self {
+        let waypoints = vec![
+            TestWaypoint { x: 1.5, y: 1.5, description: "Start".to_string() },
+            TestWaypoint { x: 2.5, y: 1.5, description: "East corridor".to_string() },
+            TestWaypoint { x: 3.5, y: 1.5, description: "Continue east".to_string() },
+            TestWaypoint { x: 3.5, y: 1.5, description: "Turn point".to_string() },
+            TestWaypoint { x: 4.5, y: 1.5, description: "Far east".to_string() },
+            TestWaypoint { x: 5.5, y: 1.5, description: "Eastern wall".to_string() },
+            TestWaypoint { x: 6.5, y: 1.5, description: "Corner approach".to_string() },
+            TestWaypoint { x: 7.5, y: 1.5, description: "Near corner".to_string() },
+            TestWaypoint { x: 8.5, y: 1.5, description: "Corner".to_string() },
+            TestWaypoint { x: 8.5, y: 1.5, description: "Turn south".to_string() },
+        ];
+
+        Self {
+            start_time: std::time::Instant::now(),
+            test_duration: std::time::Duration::from_secs(test_duration_seconds),
+            current_waypoint: 0,
+            waypoints,
+            movement_speed: 2.0,
+            rotation_speed: 3.0,
+            stuck_time: 0.0,
+            last_position: (1.5, 1.5),
+            explored_nodes: Vec::new(),
+            path_nodes: Vec::new(),
+        }
+    }
+
+    pub fn get_progress(&self) -> (usize, usize, f32) {
+        let elapsed = self.start_time.elapsed().as_secs_f32();
+        let total = self.test_duration.as_secs_f32();
+        (self.current_waypoint, self.waypoints.len(), elapsed / total)
+    }
+
+    pub fn is_finished(&self) -> bool {
+        self.start_time.elapsed() >= self.test_duration
+    }
+}
+
+impl Component for TestBot {} 

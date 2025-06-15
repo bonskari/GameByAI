@@ -3,7 +3,6 @@ use std::time::Instant;
 use super::{map::Map, player::Player, input::{InputHandler, PlayerInput}};
 use super::rendering::Modern3DRenderer;
 use super::ecs_state::EcsGameState;
-use crate::testing::visual_tests::VisualTestBot;
 
 /// Overall game state for testing and gameplay
 pub struct GameState {
@@ -12,7 +11,7 @@ pub struct GameState {
     pub start_time: Instant,
     pub modern_3d_renderer: Modern3DRenderer,
     pub view_mode_3d: bool, // Toggle between 2D and 3D view
-    pub test_bot: Option<VisualTestBot>,
+
     // ECS system
     pub ecs_state: EcsGameState,
     // Centralized input handling
@@ -28,7 +27,7 @@ impl GameState {
             start_time: Instant::now(),
             modern_3d_renderer: Modern3DRenderer::new(),
             view_mode_3d: true, // Start in 3D mode by default
-            test_bot: None,
+
             // ECS system
             ecs_state: EcsGameState::new(),
             // Centralized input handling
@@ -40,41 +39,10 @@ impl GameState {
     pub fn update(&mut self, delta_time: f32) {
         self.frame_count += 1;
         
-        // Capture input once per frame
-        let player_input = self.input_handler.capture_input();
+        // Update ECS state first
+        self.ecs_state.update(delta_time);
         
-        // Update ECS systems with centralized input
-        self.ecs_state.update_with_input(delta_time, &player_input);
-        
-        // Update test bot if present (uses ECS player data)
-        if let Some(test_bot) = &mut self.test_bot {
-            // Convert ECS player data to legacy format for test bot compatibility
-            if let Some(legacy_data) = self.ecs_state.get_legacy_player_data() {
-                let mut current_player = Player {
-                    x: legacy_data.x,
-                    y: legacy_data.y,
-                    z: legacy_data.z,
-                    rotation: legacy_data.rotation,
-                    pitch: legacy_data.pitch,
-                    speed: 2.0,
-                    turn_speed: 3.0,
-                    radius: 0.3,
-                    mouse_sensitivity: 0.18,
-                    vertical_velocity: 0.0,
-                    jump_strength: 4.5,
-                    gravity: 12.0,
-                    ground_height: 0.6,
-                    is_grounded: legacy_data.is_grounded,
-                    last_input: "ECS System".to_string(),
-                    collision_detected: false,
-                };
-                
-                test_bot.update(&mut current_player, &self.map, delta_time);
-                
-                // Sync test bot changes back to ECS
-                self.sync_test_bot_to_ecs(&current_player);
-            }
-        }
+        // Legacy player sync is no longer needed - pure ECS now
         
         // Toggle between 2D and 3D view with TAB key
         if is_key_pressed(KeyCode::Tab) {
@@ -168,29 +136,11 @@ impl GameState {
             }
         }
         
-        // Draw pathfinding visualization if test bot is active
-        if let Some(test_bot) = &self.test_bot {
-            // Draw explored nodes (A* search area) in blue
-            for &(x, y) in &test_bot.explored_nodes {
-                let screen_x = minimap_x + x as f32 * tile_size;
-                let screen_y = minimap_y + y as f32 * tile_size;
-                draw_rectangle(screen_x, screen_y, tile_size, tile_size, Color::new(0.3, 0.5, 1.0, 0.4));
-            }
-            
-            // Draw path nodes (actual route) in red
-            for &(x, y) in &test_bot.path_nodes {
-                let screen_x = minimap_x + x as f32 * tile_size;
-                let screen_y = minimap_y + y as f32 * tile_size;
-                draw_rectangle(screen_x, screen_y, tile_size, tile_size, Color::new(1.0, 0.3, 0.3, 0.7));
-            }
-            
-            // Draw current waypoint target in yellow
-            if test_bot.current_waypoint < test_bot.waypoints.len() {
-                let waypoint = &test_bot.waypoints[test_bot.current_waypoint];
-                let target_x = minimap_x + (waypoint.x - 0.5) * tile_size;
-                let target_y = minimap_y + (waypoint.y - 0.5) * tile_size;
-                draw_circle(target_x + tile_size * 0.5, target_y + tile_size * 0.5, tile_size * 0.3, YELLOW);
-            }
+        // Draw pathfinding visualization if ECS test bot is active
+        if self.ecs_state.has_test_bot() {
+            // For now, just draw a simple indicator that test bot is active
+            // TODO: Add pathfinding visualization to ECS test bot
+            draw_text("🤖 TEST BOT ACTIVE", minimap_x, minimap_y + minimap_size + 15.0, 12.0, YELLOW);
         }
         
         // Draw player position and direction
@@ -236,13 +186,5 @@ impl GameState {
             // Fallback default player if ECS data is not available
             Player::new(1.5, 1.5)
         }
-    }
-    
-
-    
-    /// Sync test bot changes back to ECS (placeholder for now)
-    fn sync_test_bot_to_ecs(&mut self, _updated_player: &Player) {
-        // TODO: Implement syncing test bot changes back to ECS
-        // This would update the ECS player entity with the test bot's modifications
     }
 } 

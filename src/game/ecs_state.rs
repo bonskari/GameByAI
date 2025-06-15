@@ -260,6 +260,9 @@ impl EcsGameState {
             }
         }
         
+        // Update all test bot entities
+        self.update_all_test_bots(delta_time);
+        
         // Run systems (commented out for now due to borrowing issues)
         // self.systems.run_all(&mut self.world);
     }
@@ -311,6 +314,176 @@ impl EcsGameState {
             })
         } else {
             None
+        }
+    }
+    
+    /// Attach a test bot component to the player entity
+    pub fn attach_test_bot(&mut self, test_duration_seconds: u64) {
+        if let Some(player_entity) = self.player_entity {
+            let test_bot = TestBot::new(test_duration_seconds);
+            self.world.add(player_entity, test_bot);
+        }
+    }
+    
+    /// Check if any entity has test bot component
+    pub fn has_test_bot(&self) -> bool {
+        for (_, _) in self.world.query_1::<TestBot>() {
+            return true;
+        }
+        false
+    }
+    
+    /// Get test bot progress for UI display (from any test bot entity)
+    pub fn get_test_bot_progress(&self) -> Option<(usize, usize, f32)> {
+        for (_, test_bot) in self.world.query_1::<TestBot>() {
+            return Some(test_bot.get_progress());
+        }
+        None
+    }
+    
+    /// Check if any test bot is finished
+    pub fn is_test_bot_finished(&self) -> bool {
+        for (_, test_bot) in self.world.query_1::<TestBot>() {
+            if test_bot.is_finished() {
+                return true;
+            }
+        }
+        false
+    }
+    
+    /// Update all entities with TestBot components (proper ECS approach)
+    fn update_all_test_bots(&mut self, delta_time: f32) {
+        // Get all entities with TestBot components
+        let test_bot_entities: Vec<Entity> = {
+            let mut entities = Vec::new();
+            for (entity, _) in self.world.query_1::<TestBot>() {
+                entities.push(entity);
+            }
+            entities
+        };
+        
+        // Update each test bot entity
+        for entity in test_bot_entities {
+            self.update_single_test_bot(entity, delta_time);
+        }
+    }
+    
+    /// Update a single test bot entity (helper method)
+    fn update_single_test_bot(&mut self, entity: Entity, delta_time: f32) {
+        // Check if entity has test bot component
+        if self.world.get::<TestBot>(entity).is_none() {
+            return;
+        }
+        
+        // Get current state
+        let (current_x, current_z, current_rotation) = {
+            if let Some(transform) = self.world.get::<Transform>(entity) {
+                (transform.position.x, transform.position.z, transform.rotation.y)
+            } else {
+                return;
+            }
+        };
+        
+        // Get test bot data and check if finished
+        let (waypoint_x, waypoint_y, movement_speed, rotation_speed, current_waypoint, is_finished) = {
+            if let Some(test_bot) = self.world.get::<TestBot>(entity) {
+                if test_bot.is_finished() {
+                    println!("🤖 Visual test completed after {:.1}s", test_bot.start_time.elapsed().as_secs_f32());
+                    return;
+                }
+                
+                if test_bot.current_waypoint >= test_bot.waypoints.len() {
+                    return;
+                }
+                
+                let waypoint = &test_bot.waypoints[test_bot.current_waypoint];
+                (waypoint.x, waypoint.y, test_bot.movement_speed, test_bot.rotation_speed, test_bot.current_waypoint, false)
+            } else {
+                return;
+            }
+        };
+        
+        if is_finished {
+            return;
+        }
+        
+        // Calculate movement
+        let dx = waypoint_x - current_x;
+        let dy = waypoint_y - current_z; // Note: Z in 3D is Y in 2D
+        let distance = (dx * dx + dy * dy).sqrt();
+        let target_angle = dy.atan2(dx);
+        let mut angle_diff = target_angle - current_rotation;
+        
+        // Normalize angle to [-PI, PI]
+        while angle_diff > std::f32::consts::PI { angle_diff -= 2.0 * std::f32::consts::PI; }
+        while angle_diff < -std::f32::consts::PI { angle_diff += 2.0 * std::f32::consts::PI; }
+        
+        // Update rotation
+        let max_turn = rotation_speed * delta_time;
+        let new_rotation = if angle_diff.abs() < max_turn {
+            target_angle
+        } else if angle_diff > 0.0 {
+            current_rotation + max_turn
+        } else {
+            current_rotation - max_turn
+        };
+        
+        // Normalize rotation
+        let mut normalized_rotation = new_rotation;
+        while normalized_rotation > std::f32::consts::PI { normalized_rotation -= 2.0 * std::f32::consts::PI; }
+        while normalized_rotation < -std::f32::consts::PI { normalized_rotation += 2.0 * std::f32::consts::PI; }
+        
+        // Update transform rotation
+        if let Some(transform) = self.world.get_mut::<Transform>(entity) {
+            transform.rotation.y = normalized_rotation;
+        }
+        
+        // Move forward if facing the waypoint (within 15 degrees)
+        let facing_threshold = 15.0_f32.to_radians();
+        let mut moved = false;
+        if angle_diff.abs() < facing_threshold {
+            let move_x = normalized_rotation.cos() * movement_speed * delta_time;
+            let move_z = normalized_rotation.sin() * movement_speed * delta_time;
+            let new_x = current_x + move_x;
+            let new_z = current_z + move_z;
+            
+            // Check collision
+            if !self.check_ecs_collision(new_x, new_z) {
+                if let Some(transform) = self.world.get_mut::<Transform>(entity) {
+                    transform.position.x = new_x;
+                    transform.position.z = new_z;
+                    moved = true;
+                }
+            } else {
+                println!("Blocked by wall at ({:.2}, {:.2}) while moving from ({:.2}, {:.2}) toward waypoint {} at ({:.2}, {:.2})", 
+                    new_x, new_z, current_x, current_z, current_waypoint, waypoint_x, waypoint_y);
+            }
+        }
+        
+        // Update test bot state
+        if let Some(test_bot) = self.world.get_mut::<TestBot>(entity) {
+            let current_pos = (current_x, current_z);
+            let pos_diff = (current_pos.0 - test_bot.last_position.0).abs() + (current_pos.1 - test_bot.last_position.1).abs();
+            
+            if !moved && pos_diff < 0.001 {
+                test_bot.stuck_time += delta_time;
+                if test_bot.stuck_time > 0.5 {
+                    println!("⚠️ Stuck at player ({:.2}, {:.2}), waypoint {} at ({:.2}, {:.2}) - skipping to next", 
+                        current_x, current_z, test_bot.current_waypoint, waypoint_x, waypoint_y);
+                    test_bot.current_waypoint = (test_bot.current_waypoint + 1) % test_bot.waypoints.len();
+                    test_bot.stuck_time = 0.0;
+                }
+            } else {
+                test_bot.stuck_time = 0.0;
+            }
+            test_bot.last_position = current_pos;
+            
+            // Move to next waypoint if close enough
+            if distance < 0.3 {
+                println!("✓ Reached waypoint {} at ({:.2}, {:.2})", test_bot.current_waypoint, waypoint_x, waypoint_y);
+                test_bot.current_waypoint = (test_bot.current_waypoint + 1) % test_bot.waypoints.len();
+                test_bot.stuck_time = 0.0;
+            }
         }
     }
 }

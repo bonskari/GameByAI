@@ -74,4 +74,25 @@ impl System for CollisionSystem {
     fn name(&self) -> &'static str {
         "CollisionSystem"
     }
+}
+
+/// Test bot system for automated testing
+pub struct TestBotSystem;
+
+impl TestBotSystem {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl System for TestBotSystem {
+    fn run(&mut self, world: &mut World) {
+        // This system is currently disabled in favor of direct ECS state updates
+        // to avoid complex borrowing issues. The test bot logic is implemented
+        // directly in EcsGameState::update_test_bot()
+    }
+
+    fn name(&self) -> &'static str {
+        "TestBotSystem"
+    }
 } 

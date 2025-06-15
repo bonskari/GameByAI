@@ -143,6 +143,20 @@ impl World {
         results
     }
     
+    /// Simple query for entities with 1 component (immutable)
+    pub fn query_1<T: Component>(&self) -> Vec<(Entity, &T)> {
+        let mut results = Vec::new();
+        
+        // Get all entities that have the component type
+        for entity in self.entities.all_entities() {
+            if let Some(comp) = self.get::<T>(entity) {
+                results.push((entity, comp));
+            }
+        }
+        
+        results
+    }
+    
     /// Clear all entities and components
     pub fn clear(&mut self) {
         self.components.clear();

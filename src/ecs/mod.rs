@@ -26,7 +26,7 @@ pub use resource::{Resource, ResourceManager};
 // Re-export game components
 pub use components::{
     Transform, Velocity, StaticRenderer, MaterialType, Collider, ColliderShape,
-    Player, Wall, Floor, Ceiling, Prop
+    Player, Wall, Floor, Ceiling, Prop, TestBot, TestWaypoint
 };
 
 // Re-export systems
