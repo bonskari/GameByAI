@@ -8,15 +8,13 @@ use crate::testing::visual_tests::VisualTestBot;
 /// Overall game state for testing and gameplay
 pub struct GameState {
     pub map: Map,
-    pub player: Player,
     pub frame_count: u32,
     pub start_time: Instant,
     pub modern_3d_renderer: Modern3DRenderer,
     pub view_mode_3d: bool, // Toggle between 2D and 3D view
     pub test_bot: Option<VisualTestBot>,
-    // ECS integration
+    // ECS system
     pub ecs_state: EcsGameState,
-    pub use_ecs: bool, // Toggle between legacy and ECS systems
     // Centralized input handling
     pub input_handler: InputHandler,
 }
@@ -26,15 +24,13 @@ impl GameState {
     pub fn new() -> Self {
         GameState {
             map: Map::new(),
-            player: Player::new(1.5, 1.5), // Start in open area near corner
             frame_count: 0,
             start_time: Instant::now(),
             modern_3d_renderer: Modern3DRenderer::new(),
             view_mode_3d: true, // Start in 3D mode by default
             test_bot: None,
-            // ECS integration
+            // ECS system
             ecs_state: EcsGameState::new(),
-            use_ecs: true, // Start with ECS enabled
             // Centralized input handling
             input_handler: InputHandler::new(),
         }
@@ -47,66 +43,36 @@ impl GameState {
         // Capture input once per frame
         let player_input = self.input_handler.capture_input();
         
-        // Toggle between legacy and ECS systems with E key
-        if is_key_pressed(KeyCode::E) {
-            self.use_ecs = !self.use_ecs;
-            println!("Switched to {} player system", if self.use_ecs { "ECS" } else { "Legacy" });
-            
-            // Sync player state when switching systems
-            if self.use_ecs {
-                // Copy legacy player state to ECS
-                self.sync_legacy_to_ecs();
-            } else {
-                // Copy ECS state to legacy player
-                self.sync_ecs_to_legacy();
-            }
-        }
+        // Update ECS systems with centralized input
+        self.ecs_state.update_with_input(delta_time, &player_input);
         
-        if self.use_ecs {
-            // Update ECS systems with centralized input
-            self.ecs_state.update_with_input(delta_time, &player_input);
-        } else {
-            // Update legacy player system with centralized input
-            self.player.update_with_input(delta_time, &self.map, &player_input);
-        }
-        
-        // Update test bot if present (always uses legacy player for now)
+        // Update test bot if present (uses ECS player data)
         if let Some(test_bot) = &mut self.test_bot {
-            let mut current_player = if self.use_ecs {
-                // Convert ECS player data to legacy format for test bot
-                if let Some(legacy_data) = self.ecs_state.get_legacy_player_data() {
-                    Player {
-                        x: legacy_data.x,
-                        y: legacy_data.y,
-                        z: legacy_data.z,
-                        rotation: legacy_data.rotation,
-                        pitch: legacy_data.pitch,
-                        speed: 2.0,
-                        turn_speed: 3.0,
-                        radius: 0.3,
-                        mouse_sensitivity: 0.18,
-                        vertical_velocity: 0.0,
-                        jump_strength: 4.5,
-                        gravity: 12.0,
-                        ground_height: 0.6,
-                        is_grounded: legacy_data.is_grounded,
-                        last_input: "ECS System".to_string(),
-                        collision_detected: false,
-                    }
-                } else {
-                    self.player.clone()
-                }
-            } else {
-                self.player.clone()
-            };
-            
-            test_bot.update(&mut current_player, &self.map, delta_time);
-            
-            // If using ECS, we need to sync the test bot changes back
-            if self.use_ecs {
+            // Convert ECS player data to legacy format for test bot compatibility
+            if let Some(legacy_data) = self.ecs_state.get_legacy_player_data() {
+                let mut current_player = Player {
+                    x: legacy_data.x,
+                    y: legacy_data.y,
+                    z: legacy_data.z,
+                    rotation: legacy_data.rotation,
+                    pitch: legacy_data.pitch,
+                    speed: 2.0,
+                    turn_speed: 3.0,
+                    radius: 0.3,
+                    mouse_sensitivity: 0.18,
+                    vertical_velocity: 0.0,
+                    jump_strength: 4.5,
+                    gravity: 12.0,
+                    ground_height: 0.6,
+                    is_grounded: legacy_data.is_grounded,
+                    last_input: "ECS System".to_string(),
+                    collision_detected: false,
+                };
+                
+                test_bot.update(&mut current_player, &self.map, delta_time);
+                
+                // Sync test bot changes back to ECS
                 self.sync_test_bot_to_ecs(&current_player);
-            } else {
-                self.player = current_player;
             }
         }
         
@@ -122,28 +88,22 @@ impl GameState {
         let current_player = self.get_current_player_data();
         
         if self.view_mode_3d {
-            // Draw modern 3D view with GPU acceleration
-            // Only render legacy geometry when NOT using ECS
-            self.modern_3d_renderer.render(&self.map, &current_player, !self.use_ecs);
-            
-            // If using ECS, render ECS entities instead
-            if self.use_ecs {
-                self.modern_3d_renderer.render_ecs_entities(&self.ecs_state.world);
-            }
+            // Update camera and render ECS entities
+            self.modern_3d_renderer.update_camera(&current_player);
+            self.modern_3d_renderer.render_ecs_entities(&self.ecs_state.world);
             
             // Draw minimap in top-right corner during 3D mode
             self.draw_minimap(&current_player);
             
             // Draw 3D UI overlay
-            let system_name = if self.use_ecs { "ECS" } else { "Legacy" };
-            draw_text(&format!("GAMEBYAI - 3D MODE ({})", system_name), 20.0, 20.0, 20.0, GREEN);
+            draw_text("GAMEBYAI - 3D MODE (ECS)", 20.0, 20.0, 20.0, GREEN);
             draw_text(&format!("FPS: {:.0} | Pos: ({:.1}, {:.1}, {:.1}) | Yaw: {:.1}° | Pitch: {:.1}° | Ground: {}", 
                 get_fps(), current_player.x, current_player.y, current_player.z, 
                 current_player.rotation.to_degrees(), current_player.pitch.to_degrees(),
                 if current_player.is_grounded { "✓" } else { "✗" }), 
                 20.0, screen_height() - 80.0, 16.0, WHITE);
             draw_text("🚀 TEXTURED 3D RENDERING", 20.0, screen_height() - 60.0, 16.0, GOLD);
-            draw_text(&format!("System: {} | E: Toggle System", system_name), 20.0, screen_height() - 40.0, 16.0, BLUE);
+            draw_text("System: ECS", 20.0, screen_height() - 40.0, 16.0, BLUE);
             draw_text("WASD: Move/Strafe | Mouse: Look | SPACE: Jump | M: Toggle Mouse | TAB: 2D View | ESC: Exit", 20.0, screen_height() - 20.0, 16.0, GRAY);
         } else {
             // Draw 2D top-down view (original)
@@ -167,10 +127,9 @@ impl GameState {
             draw_line(player_x, player_y, dir_x, dir_y, 3.0, RED);
             
             // Draw 2D UI
-            let system_name = if self.use_ecs { "ECS" } else { "Legacy" };
-            draw_text(&format!("GAMEBYAI - 2D Map View ({})", system_name), 20.0, 20.0, 20.0, GREEN);
-            draw_text(&format!("Frame: {} | FPS: {:.0} | System: {}", self.frame_count, get_fps() as i32, system_name), 20.0, screen_height() - 60.0, 16.0, WHITE);
-            draw_text("E: Toggle System | WASD: Move/Strafe | Mouse: Look | SPACE: Jump | M: Toggle Mouse | TAB: 3D View | ESC: Exit", 20.0, screen_height() - 20.0, 16.0, GRAY);
+            draw_text("GAMEBYAI - 2D Map View (ECS)", 20.0, 20.0, 20.0, GREEN);
+            draw_text(&format!("Frame: {} | FPS: {:.0} | System: ECS", self.frame_count, get_fps() as i32), 20.0, screen_height() - 60.0, 16.0, WHITE);
+            draw_text("WASD: Move/Strafe | Mouse: Look | SPACE: Jump | M: Toggle Mouse | TAB: 3D View | ESC: Exit", 20.0, screen_height() - 20.0, 16.0, GRAY);
         }
     }
     
@@ -251,61 +210,35 @@ impl GameState {
         draw_text("MINIMAP", minimap_x, minimap_y - 5.0, 12.0, WHITE);
     }
     
-    /// Get current player data regardless of which system is active
+    /// Get current player data from ECS
     fn get_current_player_data(&self) -> Player {
-        if self.use_ecs {
-            // Convert ECS data to legacy Player format
-            if let Some(legacy_data) = self.ecs_state.get_legacy_player_data() {
-                Player {
-                    x: legacy_data.x,
-                    y: legacy_data.y,
-                    z: legacy_data.z,
-                    rotation: legacy_data.rotation,
-                    pitch: legacy_data.pitch,
-                    speed: 2.0, // Use default values for missing fields
-                    turn_speed: 3.0,
-                    radius: 0.3,
-                    mouse_sensitivity: 0.18,
-                    vertical_velocity: 0.0, // Default value
-                    jump_strength: 4.5,
-                    gravity: 12.0,
-                    ground_height: 0.6,
-                    is_grounded: legacy_data.is_grounded,
-                    last_input: "ECS System".to_string(),
-                    collision_detected: false,
-                }
-            } else {
-                // Fallback to legacy player if ECS data is not available
-                self.player.clone()
+        // Convert ECS data to Player format for rendering compatibility
+        if let Some(legacy_data) = self.ecs_state.get_legacy_player_data() {
+            Player {
+                x: legacy_data.x,
+                y: legacy_data.y,
+                z: legacy_data.z,
+                rotation: legacy_data.rotation,
+                pitch: legacy_data.pitch,
+                speed: 2.0,
+                turn_speed: 3.0,
+                radius: 0.3,
+                mouse_sensitivity: 0.18,
+                vertical_velocity: 0.0,
+                jump_strength: 4.5,
+                gravity: 12.0,
+                ground_height: 0.6,
+                is_grounded: legacy_data.is_grounded,
+                last_input: "ECS System".to_string(),
+                collision_detected: false,
             }
         } else {
-            self.player.clone()
+            // Fallback default player if ECS data is not available
+            Player::new(1.5, 1.5)
         }
     }
     
-    /// Sync legacy player state to ECS
-    fn sync_legacy_to_ecs(&mut self) {
-        // This would update the ECS player entity with legacy player data
-        // For now, we'll just print a message since the ECS system starts fresh
-        println!("Syncing legacy player to ECS: pos({:.1}, {:.1}, {:.1}), rot: {:.1}°", 
-                 self.player.x, self.player.y, self.player.z, self.player.rotation.to_degrees());
-        // TODO: Implement actual sync when ECS supports direct entity updates
-    }
-    
-    /// Sync ECS state to legacy player
-    fn sync_ecs_to_legacy(&mut self) {
-        if let Some(legacy_data) = self.ecs_state.get_legacy_player_data() {
-            self.player.x = legacy_data.x;
-            self.player.y = legacy_data.y;
-            self.player.z = legacy_data.z;
-            self.player.rotation = legacy_data.rotation;
-            self.player.pitch = legacy_data.pitch;
-            self.player.is_grounded = legacy_data.is_grounded;
-            // Keep existing values for fields not in LegacyPlayerData
-            println!("Synced ECS to legacy player: pos({:.1}, {:.1}, {:.1}), rot: {:.1}°", 
-                     self.player.x, self.player.y, self.player.z, self.player.rotation.to_degrees());
-        }
-    }
+
     
     /// Sync test bot changes back to ECS (placeholder for now)
     fn sync_test_bot_to_ecs(&mut self, _updated_player: &Player) {

@@ -420,18 +420,17 @@ pub async fn run_visual_tests(test_duration: u64, auto_close: bool) {
     loop {
         let delta_time = get_frame_time();
         
-        // Update player and other game state (but not test bot yet)
-        game_state.frame_count += 1;
-        game_state.player.update(delta_time, &game_state.map);
+        // Update game state (ECS system)
+        game_state.update(delta_time);
         
         // Toggle between 2D and 3D view with TAB key
         if is_key_pressed(KeyCode::Tab) {
             game_state.view_mode_3d = !game_state.view_mode_3d;
         }
         
-        // Update test bot separately to avoid borrowing issues
-        let should_exit = if let Some(test_bot) = &mut game_state.test_bot {
-            !test_bot.update(&mut game_state.player, &game_state.map, delta_time)
+        // Test bot is now handled within game_state.update()
+        let should_exit = if let Some(test_bot) = &game_state.test_bot {
+            test_bot.start_time.elapsed() >= test_bot.test_duration
         } else {
             false
         };

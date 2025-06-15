@@ -134,26 +134,31 @@ pub async fn test_player_starting_position(_runner: &mut TestRunner) -> Result<S
     let map = Map::new();
     let game_state = super::super::game::GameState::new();
     
-    // Check if player starting position is in a wall
-    if map.is_wall(game_state.player.x as i32, game_state.player.y as i32) {
-        return Err(format!("Player starts inside wall at ({:.1}, {:.1})", 
-            game_state.player.x, game_state.player.y));
+    // Get player data from ECS
+    if let Some(legacy_data) = game_state.ecs_state.get_legacy_player_data() {
+        // Check if player starting position is in a wall
+        if map.is_wall(legacy_data.x as i32, legacy_data.y as i32) {
+            return Err(format!("Player starts inside wall at ({:.1}, {:.1})", 
+                legacy_data.x, legacy_data.y));
+        }
+        
+        // Check if starting position is within map bounds
+        if legacy_data.x < 0.0 || legacy_data.y < 0.0 ||
+           legacy_data.x >= map.width as f32 || legacy_data.y >= map.height as f32 {
+            return Err(format!("Player starts outside map bounds at ({:.1}, {:.1})", 
+                legacy_data.x, legacy_data.y));
+        }
+        
+        // Check reasonable starting height
+        if legacy_data.z <= 0.0 || legacy_data.z > 3.0 {
+            return Err(format!("Player starting height unreasonable: {:.1}", legacy_data.z));
+        }
+        
+        Ok(format!("Starting position OK at ({:.1}, {:.1}, {:.1})", 
+            legacy_data.x, legacy_data.y, legacy_data.z))
+    } else {
+        Err("Could not get player data from ECS".to_string())
     }
-    
-    // Check if starting position is within map bounds
-    if game_state.player.x < 0.0 || game_state.player.y < 0.0 ||
-       game_state.player.x >= map.width as f32 || game_state.player.y >= map.height as f32 {
-        return Err(format!("Player starts outside map bounds at ({:.1}, {:.1})", 
-            game_state.player.x, game_state.player.y));
-    }
-    
-    // Check reasonable starting height
-    if game_state.player.z <= 0.0 || game_state.player.z > 3.0 {
-        return Err(format!("Player starting height unreasonable: {:.1}", game_state.player.z));
-    }
-    
-    Ok(format!("Starting position OK at ({:.1}, {:.1}, {:.1})", 
-        game_state.player.x, game_state.player.y, game_state.player.z))
 }
 
 /// Test pitch controls - verify pitch is properly clamped and functional
