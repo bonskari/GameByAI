@@ -138,20 +138,137 @@ pub async fn run_visual_tests(test_duration: u64, auto_close: bool) {
     run_game_loop(game_state, Some(test_duration)).await;
 }
 
+/// Run texture generation
+async fn run_texture_generation(
+    output: &str,
+    token: Option<String>,
+    model: &str,
+    test_only: bool,
+    texture_type: Option<String>,
+    api_only: bool,
+    local_only: bool,
+) {
+    use game::textures::ai_generator::{AITextureGenerator, AITextureConfig, load_api_token};
+    use game::map::WallType;
+    use std::path::Path;
+
+    println!("🎨 AI Texture Generation System");
+    
+    // Load API token from command line or environment (only needed for API generation)
+    let api_token = token.or_else(load_api_token);
+    
+    // Only require token if not using local-only generation
+    if api_token.is_none() && !local_only {
+        println!("⚠️  No API token provided!");
+        println!("   Set HUGGINGFACE_API_TOKEN environment variable");
+        println!("   OR use --token argument");
+        println!("   OR create api_token.txt file");
+        println!("   OR create .env file with HUGGINGFACE_API_TOKEN=your_token");
+        println!("\n💡 Free API access available at: https://huggingface.co/settings/tokens");
+        println!("\n🤖 Alternative: Use --local-only for Python-based local generation");
+        return;
+    }
+
+    // Determine generation preference from CLI flags
+    let use_local = if api_only {
+        false  // Force API only
+    } else if local_only {
+        true   // Force local only
+    } else {
+        true   // Default to local first, fallback to API
+    };
+
+    let config = AITextureConfig {
+        api_token,
+        model: model.to_string(),
+        base_url: "https://api-inference.huggingface.co/models".to_string(),
+        use_local,
+        local_model_path: None,
+    };
+
+    let generator = AITextureGenerator::new(config);
+
+    if test_only {
+        println!("🧪 Testing API connection only...");
+        match generator.test_connection().await {
+            Ok(_) => println!("✅ API connection successful!"),
+            Err(e) => {
+                eprintln!("❌ API connection failed: {}", e);
+                return;
+            }
+        }
+        return;
+    }
+
+    let output_path = Path::new(output);
+
+    if let Some(texture_name) = texture_type {
+        // Generate specific texture type
+        println!("🎨 Generating single texture: {}", texture_name);
+        
+        if let Err(e) = std::fs::create_dir_all(output_path) {
+            eprintln!("❌ Failed to create output directory: {}", e);
+            return;
+        }
+
+        let (filename, generation_result) = match texture_name.as_str() {
+            "tech-panel" => ("tech_panel.png", generator.generate_texture(WallType::TechPanel).await),
+            "hull-plating" => ("hull_plating.png", generator.generate_texture(WallType::HullPlating).await),
+            "control-system" => ("control_system.png", generator.generate_texture(WallType::ControlSystem).await),
+            "energy-conduit" => ("energy_conduit.png", generator.generate_texture(WallType::EnergyConduit).await),
+            "floor" => ("floor.png", generator.generate_floor_texture().await),
+            "ceiling" => ("ceiling.png", generator.generate_ceiling_texture().await),
+            _ => {
+                eprintln!("❌ Invalid texture type: {}", texture_name);
+                eprintln!("   Valid options: tech-panel, hull-plating, control-system, energy-conduit, floor, ceiling");
+                return;
+            }
+        };
+
+        match generation_result {
+            Ok(image_data) => {
+                let file_path = output_path.join(filename);
+                if let Err(e) = std::fs::write(&file_path, &image_data) {
+                    eprintln!("❌ Failed to save texture: {}", e);
+                } else {
+                    println!("💾 Saved texture: {}", file_path.display());
+                }
+            }
+            Err(e) => eprintln!("❌ Failed to generate texture: {}", e),
+        }
+    } else {
+        // Generate all texture types
+        match generator.generate_all_textures(output_path).await {
+            Ok(_) => println!("🎯 All textures generated successfully!"),
+            Err(e) => eprintln!("❌ Texture generation failed: {}", e),
+        }
+    }
+}
+
 /// Main entry point
-#[macroquad::main(window_conf)]
-async fn main() {
+fn main() {
     let cli = Cli::parse();
     
     match cli.command {
         Some(Commands::Test { test_type, timeout, verbose }) => {
-            testing::run_tests(&test_type, timeout, verbose).await;
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                testing::run_tests(&test_type, timeout, verbose).await;
+            });
         },
         Some(Commands::VisualTest { duration, no_auto_close }) => {
-            run_visual_tests(duration, !no_auto_close).await;
+            macroquad::Window::from_config(window_conf(), async move {
+                run_visual_tests(duration, !no_auto_close).await;
+            });
+        },
+        Some(Commands::GenerateTextures { output, token, model, test_only, texture_type, api_only, local_only }) => {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                run_texture_generation(&output, token, &model, test_only, texture_type, api_only, local_only).await;
+            });
         },
         None => {
-            run_game().await;
+            macroquad::Window::from_config(window_conf(), run_game());
         }
     }
 }

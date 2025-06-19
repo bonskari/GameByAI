@@ -1,5 +1,0 @@
-[33me7d4a44[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m Update documentation: README and TODO reflect advanced pathfinding system and 3D rendering completion
-[33m3980b34[m Restore working visual test with full 3D rendering and pathfinding visualization
-[33mfca3539[m Implement advanced pathfinding visualization on minimap - Fixed visual test bot pathfinding with proper A* algorithm - Added minimap visualization showing explored nodes, routes, and targets - Improved waypoint selection to follow actual map corridors - Enhanced stuck detection and recovery mechanisms - All pathfinding now properly accounts for walls and obstacles
-[33m7f84f4a[m Revert: undo failed renderer refactor and restore stable state
-[33me1edfff[m Docs: add rule for committing after significant changes

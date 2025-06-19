@@ -34,4 +34,29 @@ pub enum Commands {
         #[arg(long)]
         no_auto_close: bool,
     },
+    /// Generate AI textures using Stable Diffusion (Local or API)
+    #[command(name = "generate-textures")]
+    GenerateTextures {
+        /// Output directory for generated textures
+        #[arg(short, long, default_value = "assets/textures")]
+        output: String,
+        /// Hugging Face API token (or use HUGGINGFACE_API_TOKEN env var)
+        #[arg(short, long)]
+        token: Option<String>,
+        /// Stable Diffusion model to use
+        #[arg(short, long, default_value = "stabilityai/stable-diffusion-2-1")]
+        model: String,
+        /// Test API connection only
+        #[arg(long)]
+        test_only: bool,
+        /// Generate specific texture type (tech-panel, hull-plating, control-system, energy-conduit, floor, ceiling)
+        #[arg(long)]
+        texture_type: Option<String>,
+        /// Force API-only generation (skip local SD)
+        #[arg(long)]
+        api_only: bool,
+        /// Force local-only generation (skip API)
+        #[arg(long)]
+        local_only: bool,
+    },
 } 
