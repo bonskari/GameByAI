@@ -1207,4 +1207,51 @@ impl Component for WallMesh {
     fn disable(&mut self) {
         self.enabled = false;
     }
-} 
+}
+
+/// Single mesh component that holds all floor geometry for efficient rendering
+pub struct FloorMesh {
+    pub mesh: Option<Mesh>,
+    pub enabled: bool,
+}
+
+impl FloorMesh {
+    /// Create a new floor mesh component
+    pub fn new(mesh: Mesh) -> Self {
+        Self {
+            mesh: Some(mesh),
+            enabled: true,
+        }
+    }
+
+    /// Create an empty floor mesh component
+    pub fn empty() -> Self {
+        Self {
+            mesh: None,
+            enabled: true,
+        }
+    }
+
+    /// Check if the floor mesh is enabled
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    /// Enable the floor mesh
+    pub fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    /// Disable the floor mesh
+    pub fn disable(&mut self) {
+        self.enabled = false;
+    }
+
+    /// Set enabled state
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+}
+
+impl Component for FloorMesh {} 

@@ -68,18 +68,9 @@ impl EcsGameState {
         let mut floor_count = 0;
         let mut ceiling_count = 0;
         
-        // Create floor entities for the entire map
+        // Create ceiling entities for the entire map (keeping individual entities for now)
         for y in 0..self.map.height {
             for x in 0..self.map.width {
-                // Floor entity at each position
-                self.world.spawn()
-                    .with(Transform::new(Vec3::new(x as f32 + 0.5, 0.0, y as f32 + 0.5)))
-                    .with(StaticRenderer::floor("floor.png".to_string()))
-                    .with(Collider::static_trigger(ColliderShape::Box { size: Vec3::new(1.0, 0.1, 1.0) }))
-                    .with(Floor::new())
-                    .build();
-                floor_count += 1;
-                
                 // Ceiling entity at each position
                 self.world.spawn()
                     .with(Transform::new(Vec3::new(x as f32 + 0.5, 2.0, y as f32 + 0.5)))
@@ -96,16 +87,25 @@ impl EcsGameState {
         let wall_mesh = mesh_builder.generate_wall_mesh_with_texture().await;
         
         // Create the wall mesh entity (for rendering)
-        let wall_mesh_entity = self.world.spawn()
+        let _wall_mesh_entity = self.world.spawn()
             .with(Transform::new(Vec3::ZERO))  // World origin since mesh contains world coordinates
             .with(WallMesh::new().with_mesh(wall_mesh))
             .build();
+        
+        // Generate and create the single floor mesh entity
+        let floor_mesh = mesh_builder.generate_floor_mesh_with_texture().await;
+        let _floor_mesh_entity = self.world.spawn()
+            .with(Transform::new(Vec3::ZERO))
+            .with(FloorMesh::new(floor_mesh))
+            .build();
+        
+        floor_count = 1; // One floor mesh entity
         
         // Create collision entities for walls (separate from rendering)
         for y in 0..self.map.height {
             for x in 0..self.map.width {
                 if self.map.is_wall(x as i32, y as i32) {
-                    let wall_type = self.map.get_wall_type(x as i32, y as i32);
+                    let _wall_type = self.map.get_wall_type(x as i32, y as i32);
                     
                     // Check if this is a middle pillar (roughly center of map)
                     let is_middle_pillar = (x == 4 || x == 5) && (y == 4 || y == 5);
@@ -129,8 +129,6 @@ impl EcsGameState {
         }
         
         wall_count += 1; // One additional entity for the rendering mesh
-        
-        // TODO: Handle middle pillar toggling for the mesh (requires more complex mesh updates)
         
         println!("ECS: Populated world with {} walls, {} floors, {} ceilings ({} total entities)", 
                  wall_count, floor_count, ceiling_count, wall_count + floor_count + ceiling_count + 1); // +1 for player

@@ -98,9 +98,21 @@ impl LevelMeshBuilder {
             }
         }
 
-        // Load a texture for the walls
-        let texture = if let Ok(mut tex) = load_texture("assets/textures/tech_panel.png").await {
+        // Load a texture for the walls with repeat wrap mode
+        let texture = if let Ok(image) = load_image("assets/textures/tech_panel.png").await {
+            let tex = Texture2D::from_image(&image);
             tex.set_filter(FilterMode::Nearest);
+            
+            // Set texture wrap mode to repeat using miniquad
+            unsafe {
+                let gl = macroquad::window::get_internal_gl().quad_context;
+                gl.texture_set_wrap(
+                    tex.raw_miniquad_id(), 
+                    macroquad::miniquad::TextureWrap::Repeat,
+                    macroquad::miniquad::TextureWrap::Repeat
+                );
+            }
+            
             Some(tex)
         } else {
             None
@@ -209,7 +221,7 @@ impl LevelMeshBuilder {
         }
     }
 
-    /// Add a wall face with proper UV coordinates
+    /// Add a wall face with proper UV coordinates that maintain consistent texel density
     fn add_wall_face(
         &self,
         vertices: &mut Vec<Vertex>,
@@ -222,19 +234,24 @@ impl LevelMeshBuilder {
         // Convert wall type to color for now (later we can use textures)
         let color = self.wall_type_to_color(wall_type);
         
-        // Create vertices with proper UV mapping
+        // For denser texture tiling, use smaller UV coordinates
+        // This makes the texture repeat more frequently for a denser appearance
+        let uv_scale = 2.0; // Higher scale = more texture repetition = denser tiling
+        
+        // Create 4 vertices for this wall face
         for (i, local_pos) in local_positions.iter().enumerate() {
             let world_pos = center_pos + *local_pos;
             
-            // UV coordinates for proper texture tiling
+            // UV coordinates for denser texture tiling to match floor pixel density  
+            // Using 2x horizontal and 4x vertical tiling for dense, crisp textures
             let uv = match i {
-                0 => vec2(0.0, 1.0),  // Bottom left
-                1 => vec2(1.0, 1.0),  // Bottom right
-                2 => vec2(1.0, 0.0),  // Top right
-                3 => vec2(0.0, 0.0),  // Top left
+                0 => vec2(0.0, 4.0),     // Bottom left - 4x vertical tiling
+                1 => vec2(2.0, 4.0),     // Bottom right - 2x horizontal, 4x vertical  
+                2 => vec2(2.0, 0.0),     // Top right - 2x horizontal tiling
+                3 => vec2(0.0, 0.0),     // Top left
                 _ => vec2(0.0, 0.0),
             };
-
+            
             vertices.push(Vertex {
                 position: world_pos,
                 uv,
@@ -244,17 +261,17 @@ impl LevelMeshBuilder {
                     (color.b * 255.0) as u8,
                     (color.a * 255.0) as u8,
                 ],
-                normal: Vec4::new(0.0, 0.0, 0.0, 0.0), // We'll calculate proper normals later if needed
+                normal: Vec4::new(0.0, 0.0, 0.0, 0.0),
             });
         }
-
-        // Add indices for two triangles (making a quad)
+        
+        // Create two triangles for this face
         let base = *vertex_count;
         indices.extend_from_slice(&[
-            base, base + 1, base + 2,      // First triangle
-            base, base + 2, base + 3,      // Second triangle
+            base, base + 1, base + 2,
+            base, base + 2, base + 3,
         ]);
-
+        
         *vertex_count += 4;
     }
 
@@ -267,5 +284,91 @@ impl LevelMeshBuilder {
             WallType::EnergyConduit => Color::new(0.15, 0.2, 0.25, 1.0),
             WallType::Empty => WHITE,
         }
+    }
+
+    /// Generate a single mesh containing all floor geometry with proper UV mapping
+    pub async fn generate_floor_mesh_with_texture(&self) -> Mesh {
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        let mut vertex_count = 0u16;
+
+        for y in 0..self.map.height {
+            for x in 0..self.map.width {
+                if !self.map.is_wall(x as i32, y as i32) {
+                    // This is a floor tile
+                    let pos = Vec3::new(x as f32 + 0.5, 0.0, y as f32 + 0.5);
+                    
+                    // Create a horizontal floor quad (1x1 units)
+                    self.add_floor_face(
+                        &mut vertices,
+                        &mut indices,
+                        &mut vertex_count,
+                        pos,
+                        [
+                            vec3(-0.5, 0.0, -0.5),  // Bottom left
+                            vec3(0.5, 0.0, -0.5),   // Bottom right
+                            vec3(0.5, 0.0, 0.5),    // Top right
+                            vec3(-0.5, 0.0, 0.5),   // Top left
+                        ],
+                    );
+                }
+            }
+        }
+
+        // Load floor texture
+        let texture = if let Ok(mut tex) = load_texture("assets/textures/floor.png").await {
+            tex.set_filter(FilterMode::Nearest);
+            Some(tex)
+        } else {
+            None
+        };
+
+        println!("Generated floor mesh with {} vertices and {} faces", vertices.len(), indices.len() / 3);
+
+        Mesh {
+            vertices,
+            indices,
+            texture,
+        }
+    }
+
+    /// Add a floor face with proper UV coordinates
+    fn add_floor_face(
+        &self,
+        vertices: &mut Vec<Vertex>,
+        indices: &mut Vec<u16>,
+        vertex_count: &mut u16,
+        center_pos: Vec3,
+        local_positions: [Vec3; 4],
+    ) {
+        // Create vertices with 1:1 UV mapping (each floor tile uses full texture)
+        for (i, local_pos) in local_positions.iter().enumerate() {
+            let world_pos = center_pos + *local_pos;
+            
+            // UV coordinates that use the full 0.0-1.0 range (simple 1:1 mapping)
+            let uv = match i {
+                0 => vec2(0.0, 1.0),     // Bottom left
+                1 => vec2(1.0, 1.0),     // Bottom right
+                2 => vec2(1.0, 0.0),     // Top right
+                3 => vec2(0.0, 0.0),     // Top left
+                _ => vec2(0.0, 0.0),
+            };
+
+            vertices.push(Vertex {
+                position: world_pos,
+                uv,
+                color: [255, 255, 255, 255], // White color to let texture show through
+                normal: Vec4::new(0.0, 1.0, 0.0, 0.0), // Normal pointing up for floor
+            });
+        }
+
+        // Add indices for two triangles (making a quad)
+        let base = *vertex_count;
+        indices.extend_from_slice(&[
+            base, base + 1, base + 2,      // First triangle
+            base, base + 2, base + 3,      // Second triangle
+        ]);
+
+        *vertex_count += 4;
     }
 } 
