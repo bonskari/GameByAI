@@ -3,7 +3,7 @@
 use macroquad::prelude::*;
 use crate::game::{Player};
 use crate::game::map::WallType;
-use crate::ecs::{World, Transform, StaticRenderer, Wall, Floor, Ceiling};
+use crate::ecs::{World, Transform, StaticRenderer, Wall, Floor, Ceiling, WallMesh};
 use std::collections::HashMap;
 
 /// Modern 3D renderer with ECS-based rendering only
@@ -98,7 +98,17 @@ impl Modern3DRenderer {
         let mut floor_count = 0;
         let mut ceiling_count = 0;
         
-        // Render walls (only if entity is enabled and components are enabled)
+        // Render wall meshes (new optimized approach)
+        for (entity, transform, wall_mesh) in world.query_2::<Transform, WallMesh>() {
+            if world.is_valid(entity) && entity.enabled && wall_mesh.is_enabled() && transform.is_enabled() {
+                if let Some(mesh) = &wall_mesh.mesh {
+                    draw_mesh(mesh);
+                    wall_count += 1;
+                }
+            }
+        }
+        
+        // Legacy: Render individual walls (for backward compatibility, if any remain)
         for (entity, transform, static_renderer, _wall) in world.query_3::<Transform, StaticRenderer, Wall>() {
             if world.is_valid(entity) && entity.enabled && static_renderer.is_enabled() && transform.is_enabled() {
                 self.render_static_entity(transform, static_renderer);

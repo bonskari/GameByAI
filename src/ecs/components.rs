@@ -397,33 +397,10 @@ impl Collider {
         self.enabled && !self.is_trigger
     }
 
-    /// Check if this collider would collide at a given position
-    pub fn would_collide_at(&self, position: Vec3, world: &World) -> bool {
-        if !self.enabled || self.is_trigger {
-            return false; // Disabled or triggers don't block movement
-        }
-
-        // Create a temporary transform at the test position
-        let test_transform = Transform::new(position);
-
-        // Check against all other static solid colliders
-        for (entity, other_transform, other_collider, _) in world.query_3::<Transform, Collider, StaticRenderer>() {
-            if !other_collider.enabled || other_collider.is_trigger {
-                continue; // Skip disabled or triggers
-            }
-
-            if self.shape.overlaps_with(&test_transform, &other_collider.shape, other_transform) {
-                return true;
-            }
-        }
-
-        false
-    }
-
-    /// Grid-based collision check for performance (legacy compatibility)
-    pub fn check_grid_collision(world: &World, x: f32, z: f32) -> bool {
-        let grid_x = x.floor() as i32;
-        let grid_z = z.floor() as i32;
+    /// Check for collision at a specific position, considering the shape and size of colliders
+    pub fn check_position_collision(world: &World, player_position: Vec3, player_radius: f32) -> bool {
+        let player_shape = ColliderShape::Capsule { height: 1.8, radius: player_radius };
+        let player_transform = Transform::new(player_position);
 
         for (entity, transform, collider, _) in world.query_3::<Transform, Collider, StaticRenderer>() {
             // Skip disabled entities or disabled colliders
@@ -435,15 +412,18 @@ impl Collider {
                 continue;
             }
 
-            let entity_grid_x = (transform.position.x - 0.5).floor() as i32;
-            let entity_grid_z = (transform.position.z - 0.5).floor() as i32;
-
-            if entity_grid_x == grid_x && entity_grid_z == grid_z {
+            // Use proper shape-based collision detection
+            if player_shape.overlaps_with(&player_transform, &collider.shape, transform) {
                 return true;
             }
         }
 
         false
+    }
+
+    /// Legacy grid-based collision check for backward compatibility
+    pub fn check_grid_collision(world: &World, x: f32, z: f32) -> bool {
+        Self::check_position_collision(world, Vec3::new(x, 0.6, z), 0.25)
     }
 }
 
@@ -500,8 +480,6 @@ impl ColliderShape {
 
     /// Check if this collider overlaps with another collider
     pub fn overlaps_with(&self, self_transform: &Transform, other: &ColliderShape, other_transform: &Transform) -> bool {
-        // For now, implement simple AABB vs AABB collision
-        // This can be expanded to handle all shape combinations
         match (self, other) {
             (ColliderShape::Box { size: size1 }, ColliderShape::Box { size: size2 }) => {
                 let half_size1 = *size1 * 0.5;
@@ -517,7 +495,46 @@ impl ColliderShape {
                 (pos1.z - half_size1.z <= pos2.z + half_size2.z) &&
                 (pos1.z + half_size1.z >= pos2.z - half_size2.z)
             },
-            // For other shape combinations, fall back to point-in-shape tests
+            // Capsule vs Box collision (most common case for player vs walls)
+            (ColliderShape::Capsule { height, radius }, ColliderShape::Box { size }) |
+            (ColliderShape::Box { size }, ColliderShape::Capsule { height, radius }) => {
+                let (capsule_pos, box_pos, capsule_height, capsule_radius, box_size) = 
+                    if matches!(self, ColliderShape::Capsule { .. }) {
+                        (self_transform.position, other_transform.position, *height, *radius, *size)
+                    } else {
+                        (other_transform.position, self_transform.position, *height, *radius, *size)
+                    };
+
+                let box_half_size = box_size * 0.5;
+                
+                // Find the closest point on the box to the capsule center
+                let closest_x = (capsule_pos.x).clamp(box_pos.x - box_half_size.x, box_pos.x + box_half_size.x);
+                let closest_y = (capsule_pos.y).clamp(box_pos.y - box_half_size.y, box_pos.y + box_half_size.y);
+                let closest_z = (capsule_pos.z).clamp(box_pos.z - box_half_size.z, box_pos.z + box_half_size.z);
+                
+                let closest_point = Vec3::new(closest_x, closest_y, closest_z);
+                
+                // Check if the closest point is within the capsule's radius
+                let half_height = capsule_height * 0.5;
+                let capsule_center = capsule_pos;
+                
+                // Distance from capsule center to closest point on box
+                let diff = closest_point - capsule_center;
+                
+                // For capsule collision, we need to check against the cylindrical body and hemispheres
+                if diff.y.abs() <= half_height {
+                    // Point is within the cylindrical part of the capsule
+                    let horizontal_distance = (diff.x * diff.x + diff.z * diff.z).sqrt();
+                    horizontal_distance <= capsule_radius
+                } else {
+                    // Point is above or below the cylinder, check against hemisphere caps
+                    let cap_center_y = if diff.y > 0.0 { half_height } else { -half_height };
+                    let cap_center = Vec3::new(0.0, cap_center_y, 0.0);
+                    let distance_to_cap = (diff - cap_center).length();
+                    distance_to_cap <= capsule_radius
+                }
+            },
+            // For other shape combinations, fall back to simple approximation
             _ => {
                 // Simple approximation: test if center of one shape is inside the other
                 self.contains_point(other_transform.position, self_transform) ||
@@ -1119,6 +1136,66 @@ impl Pathfinder {
 }
 
 impl Component for Pathfinder {
+    fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    fn disable(&mut self) {
+        self.enabled = false;
+    }
+}
+
+/// Wall mesh component that contains all walls as a single mesh with proper UV mapping
+pub struct WallMesh {
+    pub mesh: Option<Mesh>,
+    pub enabled: bool,
+}
+
+impl WallMesh {
+    pub fn new() -> Self {
+        Self {
+            mesh: None,
+            enabled: true,
+        }
+    }
+
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    pub fn with_mesh(mut self, mesh: Mesh) -> Self {
+        self.mesh = Some(mesh);
+        self
+    }
+
+    /// Enable this component
+    pub fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    /// Disable this component
+    pub fn disable(&mut self) {
+        self.enabled = false;
+    }
+
+    /// Check if this component is enabled
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+}
+
+impl Default for WallMesh {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Component for WallMesh {
     fn is_enabled(&self) -> bool {
         self.enabled
     }

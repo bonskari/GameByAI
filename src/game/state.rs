@@ -35,6 +35,11 @@ impl GameState {
         }
     }
     
+    /// Async initialization that sets up textures and meshes
+    pub async fn initialize(&mut self) {
+        self.ecs_state.initialize().await;
+    }
+    
     /// Update the game state
     pub fn update(&mut self, delta_time: f32) {
         self.frame_count += 1;

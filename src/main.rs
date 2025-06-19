@@ -30,6 +30,9 @@ fn window_conf() -> Conf {
 async fn initialize_game() -> GameState {
     let mut game_state = GameState::new();
     
+    // Initialize ECS with wall meshes and textures
+    game_state.initialize().await;
+    
     // Load textures for 3D rendering
     game_state.modern_3d_renderer.load_textures().await;
     

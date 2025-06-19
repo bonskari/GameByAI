@@ -13,6 +13,8 @@ pub mod state;
 pub mod ecs_state;
 pub mod rendering;
 pub mod textures;
+pub mod texture_generator;
+pub mod level_generator;
 
 // Re-export commonly used types
 pub use input::{InputHandler, PlayerInput};

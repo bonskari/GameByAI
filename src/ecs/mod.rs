@@ -32,7 +32,8 @@ pub use pathfinding::{PathfindingAlgorithms, PathfindingResult};
 // Re-export game-specific components
 pub use components::{
     Transform, Velocity, StaticRenderer, MaterialType, Collider, ColliderShape, 
-    ColliderMaterial, Player, Wall, Floor, Ceiling, Prop, TestBot, TestWaypoint, Pathfinder
+    ColliderMaterial, Player, Wall, Floor, Ceiling, Prop, TestBot, TestWaypoint, Pathfinder,
+    WallMesh
 };
 
 // Re-export systems

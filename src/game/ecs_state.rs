@@ -6,6 +6,8 @@ use crate::ecs::systems::*;
 use crate::testing::performance_test::PerformanceTest;
 use super::map::{Map, WallType};
 use super::input::PlayerInput;
+use crate::game::level_generator::LevelMeshBuilder;
+use std::time::Instant;
 
 /// ECS-based game state that manages all entities and systems
 pub struct EcsGameState {
@@ -36,12 +38,12 @@ impl EcsGameState {
             .with(Transform::new(Vec3::new(1.5, 0.6, 1.5)))
             .with(Velocity::new())
             .with(Player::new())
-            .with(Collider::dynamic_solid(ColliderShape::Capsule { height: 1.8, radius: 0.3 }))
+            .with(Collider::dynamic_solid(ColliderShape::Capsule { height: 1.8, radius: 0.25 }))
             .build();
         
         let map = Map::new();
         
-        let mut ecs_state =         Self {
+        Self {
             world,
             systems,
             pathfinding_system: PathfindingSystem::new(map.clone()),
@@ -51,16 +53,17 @@ impl EcsGameState {
             middle_pillar_entities: Vec::new(),
             pillars_enabled: true,
             last_pillar_toggle_time: std::time::Instant::now(),
-        };
-        
+        }
+    }
+    
+    /// Async initialization that sets up the static geometry with textures
+    pub async fn initialize(&mut self) {
         // Populate the world with static geometry entities
-        ecs_state.populate_static_geometry();
-        
-        ecs_state
+        self.populate_static_geometry().await;
     }
     
     /// Populate the ECS world with wall, floor, and ceiling entities using StaticRenderer
-    fn populate_static_geometry(&mut self) {
+    async fn populate_static_geometry(&mut self) {
         let mut wall_count = 0;
         let mut floor_count = 0;
         let mut ceiling_count = 0;
@@ -88,39 +91,46 @@ impl EcsGameState {
             }
         }
         
-        // Create wall entities where walls exist in the map
+        // Create a single wall mesh entity with proper UV mapping
+        let mesh_builder = LevelMeshBuilder::new(self.map.clone());
+        let wall_mesh = mesh_builder.generate_wall_mesh_with_texture().await;
+        
+        // Create the wall mesh entity (for rendering)
+        let wall_mesh_entity = self.world.spawn()
+            .with(Transform::new(Vec3::ZERO))  // World origin since mesh contains world coordinates
+            .with(WallMesh::new().with_mesh(wall_mesh))
+            .build();
+        
+        // Create collision entities for walls (separate from rendering)
         for y in 0..self.map.height {
             for x in 0..self.map.width {
                 if self.map.is_wall(x as i32, y as i32) {
                     let wall_type = self.map.get_wall_type(x as i32, y as i32);
-                    let texture_name = match wall_type {
-                        WallType::Empty => continue, // Skip empty tiles
-                        WallType::TechPanel => "tech_panel.png",
-                        WallType::HullPlating => "hull_plating.png", 
-                        WallType::ControlSystem => "control_system.png",
-                        WallType::EnergyConduit => "energy_conduit.png",
-                    };
                     
                     // Check if this is a middle pillar (roughly center of map)
                     let is_middle_pillar = (x == 4 || x == 5) && (y == 4 || y == 5);
                     
-                    // Wall entity
-                    let wall_entity = self.world.spawn()
+                    // Create collision entity for this wall position
+                    let collision_entity = self.world.spawn()
                         .with(Transform::new(Vec3::new(x as f32 + 0.5, 1.0, y as f32 + 0.5)))
-                        .with(StaticRenderer::wall(texture_name.to_string()))
                         .with(Collider::static_solid(ColliderShape::Box { size: Vec3::new(1.0, 2.0, 1.0) }))
+                        .with(StaticRenderer::wall("invisible".to_string()).with_enabled(false)) // Invisible renderer for collision query
                         .with(Wall::new())
                         .build();
                     
-                    // Store middle pillar entities for toggling
+                    // Track middle pillar entities for toggling
                     if is_middle_pillar {
-                        self.middle_pillar_entities.push(wall_entity);
+                        self.middle_pillar_entities.push(collision_entity);
                     }
                     
                     wall_count += 1;
                 }
             }
         }
+        
+        wall_count += 1; // One additional entity for the rendering mesh
+        
+        // TODO: Handle middle pillar toggling for the mesh (requires more complex mesh updates)
         
         println!("ECS: Populated world with {} walls, {} floors, {} ceilings ({} total entities)", 
                  wall_count, floor_count, ceiling_count, wall_count + floor_count + ceiling_count + 1); // +1 for player
@@ -214,9 +224,11 @@ impl EcsGameState {
                         // Release the mutable borrow before calling collision detection
                         drop(transform);
                         
-                        // Check collision with ECS entities
-                        let collision_x = self.check_ecs_collision(new_x, check_pos_z);
-                        let collision_z = self.check_ecs_collision(check_pos_x, new_z);
+                        // Check collision with ECS entities using proper shape-based collision
+                        let test_position = Vec3::new(new_x, 0.6, check_pos_z);
+                        let collision_x = Collider::check_position_collision(&self.world, test_position, 0.25);
+                        let test_position = Vec3::new(check_pos_x, 0.6, new_z);
+                        let collision_z = Collider::check_position_collision(&self.world, test_position, 0.25);
                         
                         // Re-acquire mutable borrow to update position
                         if let Some(transform) = self.world.get_mut::<Transform>(player_entity) {
@@ -245,9 +257,11 @@ impl EcsGameState {
                             // Release the mutable borrow before calling collision detection
                             drop(transform);
                             
-                            // Check collision with ECS entities
-                            let collision_x = self.check_ecs_collision(new_x, check_pos_z);
-                            let collision_z = self.check_ecs_collision(check_pos_x, new_z);
+                            // Check collision with ECS entities using proper shape-based collision
+                            let test_position = Vec3::new(new_x, 0.6, check_pos_z);
+                            let collision_x = Collider::check_position_collision(&self.world, test_position, 0.25);
+                            let test_position = Vec3::new(check_pos_x, 0.6, new_z);
+                            let collision_z = Collider::check_position_collision(&self.world, test_position, 0.25);
                             
                             // Re-acquire mutable borrow to update position
                             if let Some(transform) = self.world.get_mut::<Transform>(player_entity) {
