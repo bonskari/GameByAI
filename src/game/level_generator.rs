@@ -13,7 +13,144 @@ impl LevelMeshBuilder {
         Self { map }
     }
 
-    /// Generate a single mesh containing all wall geometry with proper UV mapping
+    /// Generate a mesh containing wall geometry for a specific wall type only
+    pub async fn generate_wall_mesh_for_type(&self, target_wall_type: WallType) -> Mesh {
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        let mut vertex_count = 0u16;
+
+        for y in 0..self.map.height {
+            for x in 0..self.map.width {
+                if self.map.is_wall(x as i32, y as i32) {
+                    let wall_type = self.map.get_wall_type(x as i32, y as i32);
+                    
+                    // Only include walls of the target type
+                    if wall_type != target_wall_type {
+                        continue;
+                    }
+                    
+                    let pos = Vec3::new(x as f32 + 0.5, 1.0, y as f32 + 0.5);
+                    
+                    // Only create faces that are exposed (adjacent to empty space)
+                    
+                    // North face (positive Z)
+                    if !self.map.is_wall(x as i32, (y + 1) as i32) {
+                        self.add_wall_face(
+                            &mut vertices,
+                            &mut indices,
+                            &mut vertex_count,
+                            pos,
+                            [
+                                vec3(-0.5, -1.0, 0.5),  // Bottom left
+                                vec3(0.5, -1.0, 0.5),   // Bottom right
+                                vec3(0.5, 1.0, 0.5),    // Top right  
+                                vec3(-0.5, 1.0, 0.5),   // Top left
+                            ],
+                            wall_type,
+                        );
+                    }
+                    
+                    // South face (negative Z)
+                    if !self.map.is_wall(x as i32, (y as i32) - 1) {
+                        self.add_wall_face(
+                            &mut vertices,
+                            &mut indices,
+                            &mut vertex_count,
+                            pos,
+                            [
+                                vec3(0.5, -1.0, -0.5),   // Bottom left
+                                vec3(-0.5, -1.0, -0.5),  // Bottom right
+                                vec3(-0.5, 1.0, -0.5),   // Top right
+                                vec3(0.5, 1.0, -0.5),    // Top left
+                            ],
+                            wall_type,
+                        );
+                    }
+                    
+                    // East face (positive X)
+                    if !self.map.is_wall((x + 1) as i32, y as i32) {
+                        self.add_wall_face(
+                            &mut vertices,
+                            &mut indices,
+                            &mut vertex_count,
+                            pos,
+                            [
+                                vec3(0.5, -1.0, 0.5),    // Bottom left
+                                vec3(0.5, -1.0, -0.5),   // Bottom right
+                                vec3(0.5, 1.0, -0.5),    // Top right
+                                vec3(0.5, 1.0, 0.5),     // Top left
+                            ],
+                            wall_type,
+                        );
+                    }
+                    
+                    // West face (negative X)
+                    if !self.map.is_wall((x as i32) - 1, y as i32) {
+                        self.add_wall_face(
+                            &mut vertices,
+                            &mut indices,
+                            &mut vertex_count,
+                            pos,
+                            [
+                                vec3(-0.5, -1.0, -0.5),  // Bottom left
+                                vec3(-0.5, -1.0, 0.5),   // Bottom right
+                                vec3(-0.5, 1.0, 0.5),    // Top right
+                                vec3(-0.5, 1.0, -0.5),   // Top left
+                            ],
+                            wall_type,
+                        );
+                    }
+                }
+            }
+        }
+
+        // Load the appropriate texture for this wall type
+        let texture_filename = match target_wall_type {
+            WallType::TechPanel => "assets/textures/tech_panel.png",
+            WallType::HullPlating => "assets/textures/hull_plating.png", 
+            WallType::ControlSystem => "assets/textures/control_system.png",
+            WallType::EnergyConduit => "assets/textures/energy_conduit.png",
+            WallType::Empty => {
+                // Return empty mesh for empty wall type
+                return Mesh {
+                    vertices: Vec::new(),
+                    indices: Vec::new(),
+                    texture: None,
+                };
+            }
+        };
+
+        let texture = if let Ok(image) = load_image(texture_filename).await {
+            let tex = Texture2D::from_image(&image);
+            tex.set_filter(FilterMode::Nearest);
+            
+            // Set texture wrap mode to repeat using miniquad
+            unsafe {
+                let gl = macroquad::window::get_internal_gl().quad_context;
+                gl.texture_set_wrap(
+                    tex.raw_miniquad_id(), 
+                    macroquad::miniquad::TextureWrap::Repeat,
+                    macroquad::miniquad::TextureWrap::Repeat
+                );
+            }
+            
+            Some(tex)
+        } else {
+            println!("Warning: Failed to load texture: {}", texture_filename);
+            None
+        };
+
+        println!("Generated {:?} wall mesh with {} vertices and {} faces", 
+                 target_wall_type, vertices.len(), indices.len() / 3);
+
+        Mesh {
+            vertices,
+            indices,
+            texture,
+        }
+    }
+
+    /// Generate a single mesh containing all wall geometry with proper UV mapping (legacy)
     pub async fn generate_wall_mesh_with_texture(&self) -> Mesh {
         let mut vertices = Vec::new();
         let mut indices = Vec::new();
@@ -234,20 +371,16 @@ impl LevelMeshBuilder {
         // Convert wall type to color for now (later we can use textures)
         let color = self.wall_type_to_color(wall_type);
         
-        // For denser texture tiling, use smaller UV coordinates
-        // This makes the texture repeat more frequently for a denser appearance
-        let uv_scale = 2.0; // Higher scale = more texture repetition = denser tiling
-        
         // Create 4 vertices for this wall face
         for (i, local_pos) in local_positions.iter().enumerate() {
             let world_pos = center_pos + *local_pos;
             
-            // UV coordinates for denser texture tiling to match floor pixel density  
-            // Using 2x horizontal and 4x vertical tiling for dense, crisp textures
+            // UV coordinates for balanced texture tiling  
+            // Using 1x horizontal and 2x vertical tiling for clean appearance
             let uv = match i {
-                0 => vec2(0.0, 4.0),     // Bottom left - 4x vertical tiling
-                1 => vec2(2.0, 4.0),     // Bottom right - 2x horizontal, 4x vertical  
-                2 => vec2(2.0, 0.0),     // Top right - 2x horizontal tiling
+                0 => vec2(0.0, 2.0),     // Bottom left - 2x vertical tiling
+                1 => vec2(1.0, 2.0),     // Bottom right - 1x horizontal, 2x vertical  
+                2 => vec2(1.0, 0.0),     // Top right - 1x horizontal tiling
                 3 => vec2(0.0, 0.0),     // Top left
                 _ => vec2(0.0, 0.0),
             };

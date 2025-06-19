@@ -48,11 +48,11 @@ struct GenerationParameters {
 impl Default for GenerationParameters {
     fn default() -> Self {
         Self {
-            width: 512,
-            height: 512,
+            width: 512,   // Generate at SDXL optimal resolution, resize later
+            height: 512,  // Generate at SDXL optimal resolution, resize later
             num_inference_steps: 20,
             guidance_scale: 7.5,
-            negative_prompt: Some("blurry, low quality, distorted, artifacts".to_string()),
+            negative_prompt: Some("photorealistic, 3d render, blurry, antialiased, smooth, gradient, realistic lighting, shadows, depth of field, bokeh, photograph, high resolution, detailed, complex, realistic textures".to_string()),
         }
     }
 }
@@ -70,25 +70,25 @@ impl AITextureGenerator {
         let client = reqwest::Client::new();
         let mut prompt_templates = HashMap::new();
         
-        // Define sci-fi texture prompts optimized for seamless tiling
+        // Define consistent pixel art sci-fi texture prompts with unified color palette
         prompt_templates.insert(
             WallType::TechPanel,
-            "tech panel surface texture, metallic blue industrial design, geometric control interface pattern, electronic components layout, seamless repeating pattern".to_string()
+            "8-bit pixel art spaceship tech panel, dark blue metal wall, orange square buttons in grid pattern, clean geometric design, retro video game texture, sharp pixels, no gradients".to_string()
         );
         
         prompt_templates.insert(
             WallType::HullPlating,
-            "metal hull plating texture, riveted steel panels pattern, industrial weathered surface, geometric panel grid, seamless repeating design".to_string()
+            "8-bit pixel art spaceship hull armor, dark gray metal plates, orange circular rivets, simple rectangular panel design, retro video game texture, sharp pixels, no gradients".to_string()
         );
         
         prompt_templates.insert(
             WallType::ControlSystem,
-            "control system interface texture, circuit board pattern, green holographic display elements, tech grid layout, seamless repeating pattern".to_string()
+            "8-bit pixel art spaceship control interface, black background, bright teal circuit board lines, orange indicator lights, simple electronic pattern, retro video game texture, sharp pixels".to_string()
         );
         
         prompt_templates.insert(
             WallType::EnergyConduit,
-            "energy conduit surface texture, power line channels pattern, blue glowing energy flow, electrical circuit layout, seamless repeating design".to_string()
+            "8-bit pixel art spaceship energy conduits, dark metal wall, glowing teal power lines, orange warning stripes, simple geometric pattern, retro video game texture, sharp pixels".to_string()
         );
 
         // Add floor texture
@@ -110,15 +110,15 @@ impl AITextureGenerator {
         self.generate_from_prompt(prompt).await
     }
 
-    /// Generate floor texture using optimized prompt
+    /// Generate floor texture using pixel art prompt
     pub async fn generate_floor_texture(&self) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
-        let floor_prompt = "industrial floor texture, metal grating pattern, sci-fi corridor flooring, geometric grid design, dark metallic surface";
+        let floor_prompt = "pixel art metal floor, dark gray grating, orange warning strips, simple grid pattern, 16-bit style";
         self.generate_from_prompt(floor_prompt).await
     }
 
-    /// Generate ceiling texture using optimized prompt
+    /// Generate ceiling texture using pixel art prompt
     pub async fn generate_ceiling_texture(&self) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
-        let ceiling_prompt = "industrial ceiling texture, ventilation panels pattern, sci-fi overhead surface, geometric vent grid, metallic ceiling tiles";
+        let ceiling_prompt = "pixel art metal ceiling, dark gray panels, teal vent lines, simple geometric pattern, 16-bit style";
         self.generate_from_prompt(ceiling_prompt).await
     }
 

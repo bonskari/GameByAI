@@ -82,15 +82,21 @@ impl EcsGameState {
             }
         }
         
-        // Create a single wall mesh entity with proper UV mapping
+        // Create separate wall meshes for each texture type
         let mesh_builder = LevelMeshBuilder::new(self.map.clone());
-        let wall_mesh = mesh_builder.generate_wall_mesh_with_texture().await;
         
-        // Create the wall mesh entity (for rendering)
-        let _wall_mesh_entity = self.world.spawn()
-            .with(Transform::new(Vec3::ZERO))  // World origin since mesh contains world coordinates
-            .with(WallMesh::new().with_mesh(wall_mesh))
-            .build();
+        // Generate separate meshes for each wall type
+        for wall_type in [WallType::TechPanel, WallType::HullPlating, WallType::ControlSystem, WallType::EnergyConduit] {
+            let wall_mesh = mesh_builder.generate_wall_mesh_for_type(wall_type).await;
+            
+            // Only create entity if mesh has geometry
+            if !wall_mesh.vertices.is_empty() {
+                let _wall_mesh_entity = self.world.spawn()
+                    .with(Transform::new(Vec3::ZERO))  // World origin since mesh contains world coordinates
+                    .with(WallMesh::new().with_mesh(wall_mesh))
+                    .build();
+            }
+        }
         
         // Generate and create the single floor mesh entity
         let floor_mesh = mesh_builder.generate_floor_mesh_with_texture().await;

@@ -97,7 +97,7 @@ class SDXLTextureServer:
         self.model_loaded = True
     
     def generate_texture(self, prompt, output_file=None):
-        """Generate a single texture"""
+        """Generate a single pixel art texture"""
         if not self.model_loaded:
             self.load_model()
         
@@ -106,16 +106,28 @@ class SDXLTextureServer:
         
         print(f">> Generation #{self.generation_count}: {prompt}")
         
+        # Enhanced prompt for pixel art with tiling (keeping it short for token limit)
+        enhanced_prompt = f"{prompt}, pixel perfect, sharp edges, clean pixels, video game texture"
+        
+        # Strong negative prompt to avoid photorealism  
+        negative_prompt = "photorealistic, 3d render, blurry, antialiased, smooth, gradient, realistic lighting, shadows, depth of field, bokeh, photograph, high resolution, detailed, complex, realistic textures"
+        
+        print(f">> Enhanced prompt: {enhanced_prompt}")
+        
         with torch.inference_mode():
-            # Generate with optimized settings
+            # Generate with pixel art optimized settings
             image = self.pipe(
-                prompt,
-                num_inference_steps=15,  # Reduced for speed
-                guidance_scale=5.0,
-                width=512,
-                height=512,
+                enhanced_prompt,
+                negative_prompt=negative_prompt,
+                num_inference_steps=25,  # More steps for pixel art quality
+                guidance_scale=8.0,      # Higher guidance for style adherence
+                width=512,               # Generate at SDXL optimal resolution
+                height=512,              # Generate at SDXL optimal resolution
                 generator=torch.Generator(device="cuda").manual_seed(42) if torch.cuda.is_available() else None
             ).images[0]
+            
+            # Resize to 128x128 using nearest neighbor for pixel art
+            image = image.resize((128, 128), Image.NEAREST)
         
         # Clean up GPU memory
         if torch.cuda.is_available():
@@ -125,10 +137,10 @@ class SDXLTextureServer:
         # Save the image
         if output_file:
             image.save(output_file)
-            print(f">> Saved: {output_file}")
+            print(f">> Saved pixel art texture: {output_file}")
         
         gen_time = time.time() - start_time
-        print(f">> Generated texture in {gen_time:.2f}s")
+        print(f">> Generated pixel art texture in {gen_time:.2f}s")
         
         return image
     
