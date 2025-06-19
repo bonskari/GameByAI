@@ -1,7 +1,7 @@
 //! Game-specific systems for the 3D game
 
 use macroquad::prelude::*;
-use crate::ecs::{System, World, Transform, Pathfinder};
+use crate::ecs::{System, World, Transform, Pathfinder, LightSource, LightReceiver, Wall, StaticRenderer, Floor, Ceiling};
 use crate::ecs::pathfinding::{PathfindingAlgorithms, PathfindingResult};
 
 /// Delta time resource for frame timing
@@ -335,5 +335,180 @@ impl System for PathfindingSystem {
 
     fn name(&self) -> &'static str {
         "PathfindingSystem"
+    }
+}
+
+/// Lighting system that calculates lighting for all entities with LightReceiver components
+pub fn lighting_system(world: &mut World, time: f32) {
+    let mut light_sources = Vec::new();
+    
+    // Collect all active light sources with their positions
+    for (entity, transform, light_source) in world.query_2::<Transform, LightSource>() {
+        if world.is_valid(entity) && entity.enabled && light_source.is_enabled() && transform.is_enabled() {
+            light_sources.push((transform.position, light_source.clone()));
+        }
+    }
+    
+    // Collect light receiver entities and calculate lighting for each
+    let mut lighting_updates = Vec::new();
+    
+    for (entity, transform, light_receiver) in world.query_2::<Transform, LightReceiver>() {
+        if !world.is_valid(entity) || !entity.enabled || !light_receiver.is_enabled() || !transform.is_enabled() {
+            continue;
+        }
+        
+        // Calculate lighting at this position
+        let mut final_color = light_receiver.ambient_color;
+        
+        for (light_pos, light_source) in &light_sources {
+            let distance = (*light_pos - transform.position).length();
+            
+            if distance > light_source.radius {
+                continue;
+            }
+            
+            // Calculate attenuation (quadratic falloff)
+            let attenuation = (1.0f32 - (distance / light_source.radius)).max(0.0);
+            let attenuation = attenuation * attenuation;
+            
+            // Get animated intensity
+            let animated_intensity = light_source.get_animated_intensity(time);
+            
+            // Apply light contribution
+            let contribution = attenuation * animated_intensity;
+            final_color.r = (final_color.r + light_source.color.r * contribution).min(1.0);
+            final_color.g = (final_color.g + light_source.color.g * contribution).min(1.0);
+            final_color.b = (final_color.b + light_source.color.b * contribution).min(1.0);
+        }
+        
+        lighting_updates.push((entity, final_color));
+    }
+    
+    // Debug output every few seconds
+    static mut LAST_DEBUG_TIME: f32 = 0.0;
+    unsafe {
+        if (time - LAST_DEBUG_TIME) > 3.0 { // Debug every 3 seconds
+            println!("💡 Lighting System: {} light sources, {} light receivers", light_sources.len(), lighting_updates.len());
+            LAST_DEBUG_TIME = time;
+        }
+    }
+    
+    // Apply lighting updates after the query
+    for (entity, final_color) in lighting_updates {
+        if let Some(mut receiver) = world.get_mut::<LightReceiver>(entity) {
+            receiver.update_lighting(final_color);
+            
+            // Also apply lighting to the StaticRenderer color if entity has one
+            if let Some(mut renderer) = world.get_mut::<StaticRenderer>(entity) {
+                renderer.color = final_color;
+            }
+        }
+    }
+}
+
+/// System that creates light sources for wall entities based on their wall type
+/// This runs only once to set up lights, then stops
+pub fn wall_lighting_setup_system(world: &mut World) {
+    // Check if we already have light sources
+    let existing_lights = {
+        let mut count = 0;
+        for (_, _) in world.query_1::<LightSource>() {
+            count += 1;
+            if count > 0 { break; } // Exit early if we have any lights
+        }
+        count
+    };
+    
+    // Skip if we already have lights
+    if existing_lights > 0 {
+        return;
+    }
+    
+    let mut walls_needing_lights = Vec::new();
+    
+    // Find all walls that don't have light sources yet
+    for (entity, transform, wall) in world.query_2::<Transform, Wall>() {
+        if world.is_valid(entity) && entity.enabled && wall.is_enabled() && transform.is_enabled() {
+            walls_needing_lights.push((entity, transform.position, wall.wall_type));
+        }
+    }
+    
+    // Create new light source entities near walls
+    let lights_created = walls_needing_lights.len();
+    for (_wall_entity, position, wall_type) in walls_needing_lights {
+        let light_source = match wall_type {
+            crate::game::map::WallType::TechPanel => {
+                LightSource::warning(3.0, 5.0)  // Much brighter and larger range
+            },
+            crate::game::map::WallType::EnergyConduit => {
+                LightSource::energy(3.0, 5.0)  // Much brighter and larger range
+            },
+            crate::game::map::WallType::ControlSystem => {
+                LightSource::control(3.0, 5.0)  // Much brighter and larger range
+            },
+            crate::game::map::WallType::HullPlating => {
+                LightSource::ambient(1.0, 3.0)  // Much brighter and larger range
+            },
+            _ => continue, // Skip empty spaces
+        };
+        
+        // Create a new light entity near the wall
+        let light_position = position + Vec3::new(0.0, 1.0, 0.0); // Slightly above wall
+        let _light_entity = world.spawn()
+            .with(Transform::new(light_position))
+            .with(light_source)
+            .build();
+    }
+    
+    // Add LightReceiver to individual Wall entities (since we're back to individual walls)
+    let wall_entities_for_lighting: Vec<_> = world.query_2::<Transform, StaticRenderer>()
+        .into_iter()
+        .filter_map(|(entity, _transform, static_renderer)| {
+            // Only add to entities that are walls (have Wall component) and don't already have LightReceiver
+            if world.is_valid(entity) && entity.enabled && world.get::<Wall>(entity).is_some() && world.get::<LightReceiver>(entity).is_none() {
+                Some(entity)
+            } else {
+                None
+            }
+        })
+        .collect();
+    
+    for entity in wall_entities_for_lighting {
+        world.add(entity, LightReceiver::new());
+    }
+    
+    // Also add LightReceiver to floor and ceiling entities
+    let floor_entities: Vec<_> = world.query_2::<Transform, Floor>()
+        .into_iter()
+        .filter_map(|(entity, _transform, _floor)| {
+            if world.is_valid(entity) && entity.enabled {
+                Some(entity)
+            } else {
+                None
+            }
+        })
+        .collect();
+    
+    for entity in floor_entities {
+        world.add(entity, LightReceiver::new());
+    }
+    
+    let ceiling_entities: Vec<_> = world.query_2::<Transform, Ceiling>()
+        .into_iter()
+        .filter_map(|(entity, _transform, _ceiling)| {
+            if world.is_valid(entity) && entity.enabled {
+                Some(entity)
+            } else {
+                None
+            }
+        })
+        .collect();
+    
+    for entity in ceiling_entities {
+        world.add(entity, LightReceiver::new());
+    }
+    
+    if lights_created > 0 {
+        println!("💡 Wall Lighting Setup: Created {} light sources and added light receivers", lights_created);
     }
 } 

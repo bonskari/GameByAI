@@ -351,6 +351,10 @@ impl EcsGameState {
             }
         }
         
+        // Run lighting systems
+        crate::ecs::systems::wall_lighting_setup_system(&mut self.world);
+        crate::ecs::systems::lighting_system(&mut self.world, self.frame_count as f32 * 0.016); // Approximate time
+        
         // Run systems (commented out for now due to borrowing issues)
         // self.systems.run_all(&mut self.world);
     }

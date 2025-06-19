@@ -668,12 +668,23 @@ impl Component for Player {
 /// Marker component for wall entities
 #[derive(Debug, Clone)]
 pub struct Wall {
+    pub wall_type: crate::game::map::WallType,
     pub enabled: bool,
 }
 
 impl Wall {
     pub fn new() -> Self {
-        Self { enabled: true }
+        Self { 
+            wall_type: crate::game::map::WallType::TechPanel, // Default
+            enabled: true 
+        }
+    }
+
+    pub fn new_with_type(wall_type: crate::game::map::WallType) -> Self {
+        Self { 
+            wall_type,
+            enabled: true 
+        }
     }
 
     pub fn with_enabled(mut self, enabled: bool) -> Self {
@@ -1152,6 +1163,7 @@ impl Component for Pathfinder {
 /// Wall mesh component that contains all walls as a single mesh with proper UV mapping
 pub struct WallMesh {
     pub mesh: Option<Mesh>,
+    pub wall_type: crate::game::map::WallType,
     pub enabled: bool,
 }
 
@@ -1159,6 +1171,15 @@ impl WallMesh {
     pub fn new() -> Self {
         Self {
             mesh: None,
+            wall_type: crate::game::map::WallType::TechPanel, // Default type
+            enabled: true,
+        }
+    }
+
+    pub fn new_with_type(wall_type: crate::game::map::WallType) -> Self {
+        Self {
+            mesh: None,
+            wall_type,
             enabled: true,
         }
     }
@@ -1254,4 +1275,202 @@ impl FloorMesh {
     }
 }
 
-impl Component for FloorMesh {} 
+impl Component for FloorMesh {}
+
+/// Light source component for dynamic lighting effects
+#[derive(Clone, Debug)]
+pub struct LightSource {
+    pub color: Color,
+    pub intensity: f32,
+    pub radius: f32,
+    pub light_type: LightSourceType,
+    pub enabled: bool,
+}
+
+/// Types of light sources for different atmospheric effects
+#[derive(Clone, Debug)]
+pub enum LightSourceType {
+    /// Pulsing warning lights (tech panels)
+    Warning { pulse_speed: f32 },
+    /// Flowing energy lights (conduits)  
+    Energy { flow_speed: f32 },
+    /// Flickering control lights (control systems)
+    Control { flicker_speed: f32 },
+    /// Static ambient lighting (hull plating)
+    Ambient,
+}
+
+impl LightSource {
+    /// Create a new light source
+    pub fn new(color: Color, intensity: f32, radius: f32, light_type: LightSourceType) -> Self {
+        Self {
+            color,
+            intensity,
+            radius,
+            light_type,
+            enabled: true,
+        }
+    }
+
+    /// Create a warning light (orange, pulsing)
+    pub fn warning(intensity: f32, radius: f32) -> Self {
+        Self::new(
+            Color::new(1.0, 0.6, 0.2, 1.0), // Orange
+            intensity,
+            radius,
+            LightSourceType::Warning { pulse_speed: 2.0 }
+        )
+    }
+
+    /// Create an energy light (teal, flowing)
+    pub fn energy(intensity: f32, radius: f32) -> Self {
+        Self::new(
+            Color::new(0.2, 0.8, 0.9, 1.0), // Teal
+            intensity,
+            radius,
+            LightSourceType::Energy { flow_speed: 1.5 }
+        )
+    }
+
+    /// Create a control light (light blue, flickering)
+    pub fn control(intensity: f32, radius: f32) -> Self {
+        Self::new(
+            Color::new(0.4, 0.9, 1.0, 1.0), // Light blue
+            intensity,
+            radius,
+            LightSourceType::Control { flicker_speed: 0.1 }
+        )
+    }
+
+    /// Create ambient lighting (dim gray)
+    pub fn ambient(intensity: f32, radius: f32) -> Self {
+        Self::new(
+            Color::new(0.3, 0.3, 0.35, 1.0), // Dim gray
+            intensity,
+            radius,
+            LightSourceType::Ambient
+        )
+    }
+
+    /// Get the current animated intensity based on time
+    pub fn get_animated_intensity(&self, time: f32) -> f32 {
+        if !self.enabled {
+            return 0.0;
+        }
+
+        match &self.light_type {
+            LightSourceType::Warning { pulse_speed } => {
+                let pulse = (time * pulse_speed).sin() * 0.3 + 0.7;
+                self.intensity * pulse
+            },
+            LightSourceType::Energy { flow_speed } => {
+                let flow = (time * flow_speed).sin() * 0.2 + 0.8;
+                self.intensity * flow
+            },
+            LightSourceType::Control { flicker_speed } => {
+                let flicker = if (time * 10.0) % 1.0 < *flicker_speed { 0.5 } else { 1.0 };
+                self.intensity * flicker
+            },
+            LightSourceType::Ambient => self.intensity,
+        }
+    }
+
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    pub fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    pub fn disable(&mut self) {
+        self.enabled = false;
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+}
+
+impl Component for LightSource {
+    fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    fn disable(&mut self) {
+        self.enabled = false;
+    }
+}
+
+/// Component that receives lighting from nearby light sources
+#[derive(Clone, Debug)]
+pub struct LightReceiver {
+    pub current_lighting: Color,
+    pub ambient_color: Color,
+    pub enabled: bool,
+}
+
+impl LightReceiver {
+    pub fn new() -> Self {
+        Self {
+            current_lighting: Color::new(0.15, 0.15, 0.2, 1.0), // Dark blue ambient
+            ambient_color: Color::new(0.15, 0.15, 0.2, 1.0),
+            enabled: true,
+        }
+    }
+
+    pub fn with_ambient(mut self, ambient: Color) -> Self {
+        self.ambient_color = ambient;
+        self.current_lighting = ambient;
+        self
+    }
+
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    pub fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    pub fn disable(&mut self) {
+        self.enabled = false;
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    /// Update the current lighting color
+    pub fn update_lighting(&mut self, lighting: Color) {
+        if self.enabled {
+            self.current_lighting = lighting;
+        }
+    }
+}
+
+impl Default for LightReceiver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Component for LightReceiver {
+    fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    fn disable(&mut self) {
+        self.enabled = false;
+    }
+} 

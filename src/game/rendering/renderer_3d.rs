@@ -3,7 +3,7 @@
 use macroquad::prelude::*;
 use crate::game::{Player};
 use crate::game::map::WallType;
-use crate::ecs::{World, Transform, StaticRenderer, Wall, Floor, Ceiling, WallMesh, FloorMesh};
+use crate::ecs::{World, Transform, StaticRenderer, Wall, Floor, Ceiling, WallMesh, FloorMesh, LightReceiver};
 use std::collections::HashMap;
 
 /// Modern 3D renderer with ECS-based rendering only
@@ -88,11 +88,15 @@ impl Modern3DRenderer {
         self.camera.target = self.camera.position + vec3(look_x, look_y, look_z);
     }
 
+
+
     /// Render ECS entities with StaticRenderer components
     pub fn render_ecs_entities(&mut self, world: &World) {
         // Set the 3D camera for ECS rendering
         set_camera(&self.camera);
-        clear_background(DARKGRAY);
+        
+        // Use atmospheric background color (could be enhanced with ECS lighting later)
+        clear_background(Color::new(0.1, 0.1, 0.15, 1.0)); // Dark blue atmosphere
         
         let mut wall_count = 0;
         let mut floor_count = 0;
@@ -183,8 +187,8 @@ impl Modern3DRenderer {
             },
         };
         
-        // Use white color to let texture show through properly
-        let color = WHITE;
+        // Use color from StaticRenderer component (modified by lighting system)
+        let color = static_renderer.color;
         
         draw_cube(transform.position, size, texture, color);
     }

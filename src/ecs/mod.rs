@@ -33,7 +33,7 @@ pub use pathfinding::{PathfindingAlgorithms, PathfindingResult};
 pub use components::{
     Transform, Velocity, StaticRenderer, MaterialType, Collider, ColliderShape, 
     ColliderMaterial, Player, Wall, Floor, Ceiling, Prop, TestBot, TestWaypoint, Pathfinder,
-    WallMesh, FloorMesh,
+    WallMesh, FloorMesh, LightSource, LightSourceType, LightReceiver,
 };
 
 // Re-export systems
