@@ -3,7 +3,7 @@
 use macroquad::prelude::*;
 use crate::game::{Player};
 use crate::game::map::WallType;
-use crate::ecs::{World, Transform, StaticRenderer, Wall, Floor, Ceiling, WallMesh, FloorMesh, LightReceiver};
+use crate::ecs::{World, Transform, StaticRenderer, Wall, Floor, Ceiling, WallMesh, FloorMesh, LightReceiver, Renderable, RenderData, RenderType};
 use std::collections::HashMap;
 
 /// Modern 3D renderer with ECS-based rendering only
@@ -90,7 +90,7 @@ impl Modern3DRenderer {
 
 
 
-    /// Render ECS entities with StaticRenderer components
+    /// Render ECS entities - unified approach for all renderable components
     pub fn render_ecs_entities(&mut self, world: &World) {
         // Set the 3D camera for ECS rendering
         set_camera(&self.camera);
@@ -98,65 +98,91 @@ impl Modern3DRenderer {
         // Use atmospheric background color (could be enhanced with ECS lighting later)
         clear_background(Color::new(0.1, 0.1, 0.15, 1.0)); // Dark blue atmosphere
         
-        let mut wall_count = 0;
-        let mut floor_count = 0;
-        let mut ceiling_count = 0;
-        
-        // Render wall meshes (new optimized approach)
-        for (entity, transform, wall_mesh) in world.query_2::<Transform, WallMesh>() {
-            if world.is_valid(entity) && entity.enabled && wall_mesh.is_enabled() && transform.is_enabled() {
-                if let Some(mesh) = &wall_mesh.mesh {
-                    draw_mesh(mesh);
-                    wall_count += 1;
-                }
-            }
-        }
-        
-        // Render floor meshes (new optimized approach)
-        for (entity, transform, floor_mesh) in world.query_2::<Transform, FloorMesh>() {
-            if world.is_valid(entity) && entity.enabled && floor_mesh.is_enabled() && transform.is_enabled() {
-                if let Some(mesh) = &floor_mesh.mesh {
-                    draw_mesh(mesh);
-                    floor_count += 1;
-                }
-            }
-        }
-        
-        // Legacy: Render individual walls (for backward compatibility, if any remain)
-        for (entity, transform, static_renderer, _wall) in world.query_3::<Transform, StaticRenderer, Wall>() {
-            if world.is_valid(entity) && entity.enabled && static_renderer.is_enabled() && transform.is_enabled() {
-                self.render_static_entity(transform, static_renderer);
-                wall_count += 1;
-            }
-        }
-        
-        // Render floors (only if entity is enabled and components are enabled)
-        for (entity, transform, static_renderer, _floor) in world.query_3::<Transform, StaticRenderer, Floor>() {
-            if world.is_valid(entity) && entity.enabled && static_renderer.is_enabled() && transform.is_enabled() {
-                self.render_static_entity(transform, static_renderer);
-                floor_count += 1;
-            }
-        }
-        
-        // Render ceilings (only if entity is enabled and components are enabled)
-        for (entity, transform, static_renderer, _ceiling) in world.query_3::<Transform, StaticRenderer, Ceiling>() {
-            if world.is_valid(entity) && entity.enabled && static_renderer.is_enabled() && transform.is_enabled() {
-                self.render_static_entity(transform, static_renderer);
-                ceiling_count += 1;
-            }
-        }
+        // Unified rendering - all entities with Transform + renderable components
+        self.render_mesh_components(world);
+        self.render_static_components(world);
         
         // Reset to default camera after ECS rendering
         set_default_camera();
+    }
+
+    /// Render all entities with mesh-based components - now unified too!
+    fn render_mesh_components(&mut self, world: &World) {
+        let mut mesh_count = 0;
         
-        // Print occasionally to avoid spam
-        static mut FRAME_COUNT: u32 = 0;
-        unsafe {
-            FRAME_COUNT += 1;
-            if FRAME_COUNT % 300 == 0 { // Print every 5 seconds at 60 FPS
-                println!("ECS Rendering: {} walls, {} floors, {} ceilings", wall_count, floor_count, ceiling_count);
+        // Render WallMesh components using unified approach
+        for (entity, transform, wall_mesh) in world.query_2::<Transform, WallMesh>() {
+            if self.should_render_entity(entity, world) && wall_mesh.should_render() && transform.is_enabled() {
+                if let Some(mesh) = &wall_mesh.mesh {
+                    draw_mesh(mesh);
+                    mesh_count += 1;
+                }
             }
         }
+        
+        // Render FloorMesh components using unified approach
+        for (entity, transform, floor_mesh) in world.query_2::<Transform, FloorMesh>() {
+            if self.should_render_entity(entity, world) && floor_mesh.should_render() && transform.is_enabled() {
+                if let Some(mesh) = &floor_mesh.mesh {
+                    draw_mesh(mesh);
+                    mesh_count += 1;
+                }
+            }
+        }
+        
+        // Log occasionally
+        static mut MESH_FRAME_COUNT: u32 = 0;
+        unsafe {
+            MESH_FRAME_COUNT += 1;
+            if MESH_FRAME_COUNT % 300 == 0 {
+                println!("ECS Unified Mesh Rendering: {} meshes", mesh_count);
+            }
+        }
+    }
+
+    /// Render all entities with renderable components - truly unified!
+    fn render_static_components(&mut self, world: &World) {
+        let mut render_count = 0;
+        
+        // Render StaticRenderer components
+        for (entity, transform, renderable) in world.query_2::<Transform, StaticRenderer>() {
+            if self.should_render_entity(entity, world) && renderable.should_render() && transform.is_enabled() {
+                let render_data = renderable.get_render_data();
+                self.render_with_data(transform, &render_data);
+                render_count += 1;
+            }
+        }
+        
+        // Log occasionally
+        static mut RENDER_FRAME_COUNT: u32 = 0;
+        unsafe {
+            RENDER_FRAME_COUNT += 1;
+            if RENDER_FRAME_COUNT % 300 == 0 {
+                println!("ECS Unified Rendering: {} renderable entities", render_count);
+            }
+        }
+    }
+
+    /// Render using generic render data - works for any Renderable component!
+    fn render_with_data(&self, transform: &Transform, render_data: &RenderData) {
+        match &render_data.render_type {
+            RenderType::Mesh => {
+                // Mesh rendering is handled directly in mesh components
+            },
+            RenderType::Cube { size } => {
+                let texture = render_data.texture_name.as_ref()
+                    .and_then(|name| self.get_wall_texture_by_name(name));
+                draw_cube(transform.position, *size, texture, render_data.color);
+            },
+            RenderType::Custom => {
+                // Handle custom rendering if needed
+            },
+        }
+    }
+
+    /// Check if an entity should be rendered (unified enable/disable logic)
+    fn should_render_entity(&self, entity: crate::ecs::Entity, world: &World) -> bool {
+        world.is_valid(entity) && entity.enabled
     }
     
     /// Render a single static entity

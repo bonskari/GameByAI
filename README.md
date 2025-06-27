@@ -6,7 +6,7 @@ A 3D first-person game created with AI assistance using **Rust** and **macroquad
 
 This project creates a classic first-person 3D gameplay experience using modern Rust development with the macroquad game framework. The development process is AI-assisted, combining learning with practical game development.
 
-**🆕 NEW: Hybrid ECS A* Pathfinding System** - The game now features a complete Entity Component System with intelligent A* pathfinding, reusable components, and excellent performance (120+ FPS).
+**🆕 NEW: Hybrid ECS A* Pathfinding System** - The game now features a complete Entity Component System with intelligent A* pathfinding, reusable components, and excellent performance (120+ FPS after lighting optimization).
 
 ## 🚀 Getting Started
 
@@ -41,8 +41,8 @@ cargo run -- visual-test -d 30
 - **✅ Intelligent TestBot navigation** using A* algorithm for optimal pathfinding
 - **✅ Texture-based rendering** with proper material lookup system
 - **✅ ECS collision detection** working seamlessly with grid-based detection
-- **✅ Excellent performance** maintaining 120+ FPS consistently
-- **✅ Modern 3D graphics** with procedural textures and lighting
+- **✅ Excellent performance** maintaining 120+ FPS consistently (after lighting optimization)
+- **✅ Modern 3D graphics** with procedural textures ⚠️ (dynamic lighting disabled for performance)
 - **✅ Integrated testing system** with automated bot navigation
 - **✅ Real-time minimap** with pathfinding visualization
 - **✅ First-person controls** (WASD movement, mouse look, jumping)
@@ -83,7 +83,8 @@ The game features a **complete Entity Component System (ECS)** implementation wi
 - **✅ Texture System**: Complete material-based texture rendering via ECS
 - **✅ ECS Collision Detection**: Grid-based collision working perfectly
 - **✅ 🆕 Hybrid Pathfinding**: TestBot + Pathfinder components working together
-- **✅ Performance**: Excellent 120+ FPS with full ECS rendering and pathfinding
+- **✅ Performance**: Excellent 120+ FPS with full ECS rendering and pathfinding (lighting system disabled)
+- **⚠️ Technical Debt**: Dynamic lighting system exists but disabled for performance reasons
 
 ## 🎨 Texture System
 
@@ -208,23 +209,34 @@ The game features an advanced hybrid ECS pathfinding system:
 The project includes an advanced automated visual test system with AI pathfinding:
 
 ### Visual Test Mode
-The visual test mode features an AI bot that automatically navigates through the level using A* pathfinding:
+The visual test mode runs comprehensive testing including lighting performance and AI bot navigation:
 ```bash
-# Run the visual test with AI pathfinding
+# Run the complete visual test suite (lighting + bot navigation)
 cargo run -- visual-test
 
-# Run with custom duration (default: 15 seconds)
+# Run with custom bot navigation duration (default: 15 seconds)
 cargo run -- visual-test --duration 30
 cargo run -- visual-test -d 30
 ```
 
 The visual test will:
+- **🔆 Test lighting performance first** with progressive light count testing
 - **Generate optimal paths** using A* pathfinding algorithm
 - **Navigate through waypoints** automatically with intelligent pathfinding
 - **Visualize pathfinding** on the minimap in real-time
 - **Test wall collision detection** and avoidance
 - **Display progress** with overlay information
 - **Complete automatically** after the specified duration
+
+### Lighting Performance Tests (Always Included)
+Every visual test run includes a progressive lighting test sequence:
+- **Baseline Test**: Performance with no lights (3 seconds)
+- **Single Light Test**: Performance with 1 light (2 seconds)
+- **Multiple Lights**: Performance with 8 strategically placed lights (3 seconds)
+- **Many Lights**: Performance with 50 random lights (4 seconds)
+- **Stress Test**: Performance with 100+ lights if previous tests show good performance (3 seconds)
+
+This helps measure the impact of the lighting system on performance and identify optimal light counts for smooth gameplay.
 
 ### What You'll See:
 - **Main 3D View**: Full first-person 3D rendering

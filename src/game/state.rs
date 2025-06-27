@@ -73,6 +73,11 @@ impl GameState {
                 self.draw_performance_analysis_overlay();
             }
             
+            // Show lighting test overlay if lighting tests are active
+            if self.ecs_state.has_lighting_test() {
+                self.draw_lighting_test_overlay();
+            }
+            
             // Draw 3D UI overlay (moved down to avoid overlap with performance stats)
             let ui_y_offset = if self.ecs_state.has_test_bot() { 120.0 } else { 20.0 };
             draw_text("GAMEBYAI - 3D MODE (ECS)", 20.0, ui_y_offset, 20.0, GREEN);
@@ -146,7 +151,14 @@ impl GameState {
                 } else {
                     draw_text("🤖 TEST RUNNING - Initializing...", 50.0, 500.0, 18.0, YELLOW);
                 }
-            } else {
+            }
+            
+            // Show lighting test overlay if lighting tests are active  
+            if self.ecs_state.has_lighting_test() {
+                self.draw_lighting_test_overlay();
+            }
+            
+            if !self.ecs_state.has_test_bot() && !self.ecs_state.has_lighting_test() {
                 // Show pillar toggle status when not testing
                 let (pillars_enabled, pillar_count) = self.ecs_state.get_pillar_status();
                 let pillar_status = if pillars_enabled { "ENABLED" } else { "DISABLED" };
@@ -249,6 +261,40 @@ impl GameState {
         }
     }
     
+    /// Show lighting test overlay
+    fn draw_lighting_test_overlay(&self) {
+        if let Some((test_name, light_count, elapsed, duration, bg_color)) = self.ecs_state.get_lighting_test_info() {
+            // Don't override the normal game background, just draw UI overlay
+            
+            // Draw lighting test information in top-center
+            let center_x = screen_width() / 2.0 - 150.0;
+            let test_y = 20.0;
+            
+            // Semi-transparent background
+            draw_rectangle(center_x - 10.0, test_y - 10.0, 300.0, 120.0, 
+                          Color::new(bg_color.r * 0.5, bg_color.g * 0.5, bg_color.b * 0.5, 0.9));
+            
+            draw_text("🔆 LIGHTING TEST", center_x, test_y + 20.0, 20.0, WHITE);
+            draw_text(&format!("Phase: {}", test_name), center_x, test_y + 45.0, 16.0, WHITE);
+            draw_text(&format!("Lights: {} | FPS: {:.0}", light_count, get_fps()), center_x, test_y + 65.0, 14.0, YELLOW);
+            draw_text(&format!("Time: {:.1}s / {:.1}s", elapsed, duration), center_x, test_y + 85.0, 14.0, GREEN);
+            
+            // Progress bar
+            let progress = elapsed / duration;
+            let bar_width = 280.0;
+            let bar_height = 8.0;
+            let bar_x = center_x;
+            let bar_y = test_y + 100.0;
+            
+            // Background
+            draw_rectangle(bar_x, bar_y, bar_width, bar_height, GRAY);
+            // Progress
+            draw_rectangle(bar_x, bar_y, bar_width * progress, bar_height, GREEN);
+            // Border
+            draw_rectangle_lines(bar_x, bar_y, bar_width, bar_height, 1.0, WHITE);
+        }
+    }
+
     /// Draw compact stats overlay for 3D mode
     fn draw_performance_analysis_overlay(&self) {
         let overlay_x = 10.0;   // Top-left corner

@@ -1,7 +1,7 @@
 //! Game-specific systems for the 3D game
 
 use macroquad::prelude::*;
-use crate::ecs::{System, World, Transform, Pathfinder, LightSource, LightReceiver, Wall, StaticRenderer, Floor, Ceiling};
+use crate::ecs::{System, World, Transform, Pathfinder, LightSource, LightReceiver, Wall, StaticRenderer, Floor, Ceiling, LightingTest};
 use crate::ecs::pathfinding::{PathfindingAlgorithms, PathfindingResult};
 
 /// Delta time resource for frame timing
@@ -95,6 +95,27 @@ impl System for TestBotSystem {
 
     fn name(&self) -> &'static str {
         "TestBotSystem"
+    }
+}
+
+/// Lighting test system - handles lighting test behavior
+pub struct LightingTestSystem;
+
+impl LightingTestSystem {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl System for LightingTestSystem {
+    fn run(&mut self, world: &mut World) {
+        // This system is currently disabled in favor of direct ECS state updates
+        // to avoid complex borrowing issues. The lighting test logic is implemented
+        // directly in EcsGameState::update_lighting_tests()
+    }
+
+    fn name(&self) -> &'static str {
+        "LightingTestSystem"
     }
 }
 

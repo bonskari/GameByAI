@@ -184,9 +184,9 @@ impl EcsGameState {
         // Disable user input when test bot is active
         let test_active = self.has_test_bot();
         
-        // Debug: Print test status
-        if test_active && self.frame_count % 300 == 0 { // Every 5 seconds at 60fps
-            println!("🔍 DEBUG: Test is active, user input should be disabled");
+        // Debug: Print test status (reduced frequency to avoid console I/O)
+        if test_active && self.frame_count % 900 == 0 { // Every 15 seconds at 60fps
+            println!("🔍 DEBUG: Test active, user input disabled");
         }
         
         // For now, implement basic player movement directly in the ECS state
@@ -339,9 +339,11 @@ impl EcsGameState {
             } // Close the !test_active condition
         } // Close the player_entity check
         
-        // Update all test bot entities
+        // Update all ECS components/systems
+        self.update_ecs_systems(delta_time);
+        
+        // Continue with visual feedback for tests
         if self.has_test_bot() {
-            self.update_all_test_bots(delta_time);
             
             // Visual feedback when test is running
             if self.frame_count % 120 == 0 { // Every 2 seconds at 60fps
@@ -351,9 +353,10 @@ impl EcsGameState {
             }
         }
         
-        // Run lighting systems
-        crate::ecs::systems::wall_lighting_setup_system(&mut self.world);
-        crate::ecs::systems::lighting_system(&mut self.world, self.frame_count as f32 * 0.016); // Approximate time
+        // Run lighting systems (DISABLED for performance - was causing massive FPS drop)
+        // TODO: Optimize lighting system to run less frequently or use spatial partitioning
+        // crate::ecs::systems::wall_lighting_setup_system(&mut self.world);
+        // crate::ecs::systems::lighting_system(&mut self.world, self.frame_count as f32 * 0.016);
         
         // Run systems (commented out for now due to borrowing issues)
         // self.systems.run_all(&mut self.world);
@@ -451,8 +454,18 @@ impl EcsGameState {
         false
     }
     
-    /// Update all entities with TestBot components (proper ECS approach)
-    fn update_all_test_bots(&mut self, delta_time: f32) {
+    /// Update all ECS systems and components - unified approach
+    fn update_ecs_systems(&mut self, delta_time: f32) {
+        // Process all component types that need updates
+        self.process_test_components(delta_time);
+        self.process_lighting_components(delta_time);
+        
+        // Future: Could be made fully automatic with component registration
+        // self.process_all_updatable_components(delta_time);
+    }
+
+    /// Process all entities with TestBot components
+    fn process_test_components(&mut self, delta_time: f32) {
         // Collect entities first to avoid borrowing conflicts
         let test_bot_entities: Vec<crate::ecs::Entity> = {
             let mut entities = Vec::new();
@@ -664,6 +677,160 @@ impl EcsGameState {
         }
         
         println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    }
+    
+    /// Start lighting performance tests by adding LightingTest component
+    pub fn start_lighting_tests(&mut self) {
+        // Find or create a test entity and add LightingTest component
+        let test_entity = self.world.spawn()
+            .with(crate::ecs::LightingTest::new())
+            .build();
+        
+        println!("🔆 Started lighting performance tests with entity: {:?}", test_entity);
+    }
+    
+    /// Process all entities with LightingTest components
+    fn process_lighting_components(&mut self, _delta_time: f32) {
+        // Collect test phase changes first to avoid borrowing conflicts
+        let mut phase_changes = Vec::new();
+        let mut finished_tests = Vec::new();
+
+        // Find any lighting test entities
+        let test_entities: Vec<_> = self.world
+            .query_1::<crate::ecs::LightingTest>()
+            .into_iter()
+            .map(|(entity, _)| entity)
+            .collect();
+
+        for entity in test_entities {
+            if let Some(lighting_test) = self.world.get_mut::<crate::ecs::LightingTest>(entity) {
+                // Check if we should advance to the next phase
+                if lighting_test.should_advance_phase() {
+                    lighting_test.advance_phase();
+                    
+                    // Store phase change info
+                    if let Some(phase) = lighting_test.get_current_phase() {
+                        phase_changes.push((phase.name.clone(), phase.light_count));
+                    } else {
+                        // Test finished
+                        finished_tests.push(entity);
+                    }
+                }
+            }
+        }
+        
+        // Apply phase changes after releasing the borrow
+        for (phase_name, light_count) in phase_changes {
+            println!("🔆 Lighting test phase: {} ({} lights)", phase_name, light_count);
+            self.set_light_count(light_count);
+        }
+        
+        // Clean up finished tests
+        for entity in finished_tests {
+            println!("✅ Lighting tests completed!");
+            self.world.despawn(entity);
+            self.remove_all_lights();
+        }
+    }
+
+    /// Check if lighting tests are active
+    pub fn has_lighting_test(&self) -> bool {
+        self.world.query_1::<crate::ecs::LightingTest>().into_iter().next().is_some()
+    }
+
+    /// Get current lighting test info for display
+    pub fn get_lighting_test_info(&self) -> Option<(String, usize, f32, f32, Color)> {
+        if let Some((_, lighting_test)) = self.world.query_1::<crate::ecs::LightingTest>().into_iter().next() {
+            if let Some(phase) = lighting_test.get_current_phase() {
+                let elapsed = lighting_test.get_phase_elapsed_time();
+                return Some((
+                    phase.name.clone(),
+                    phase.light_count,
+                    elapsed,
+                    phase.duration_seconds,
+                    phase.background_color,
+                ));
+            }
+        }
+        None
+    }
+    
+    /// Remove all lights from the ECS world
+    pub fn remove_all_lights(&mut self) {
+        let light_entities: Vec<_> = self.world
+            .query_1::<LightSource>()
+            .into_iter()
+            .map(|(entity, _)| entity)
+            .collect();
+
+        for entity in light_entities {
+            self.world.despawn(entity);
+        }
+    }
+    
+    /// Set the number of lights in the world (for testing)
+    pub fn set_light_count(&mut self, count: usize) {
+        // Remove all existing lights
+        self.remove_all_lights();
+        
+        // Add the requested number of lights
+        if count == 0 {
+            return; // No lights needed
+        }
+        
+        // Add lights at strategic positions
+        let positions = vec![
+            Vec3::new(5.0, 1.0, 5.0),   // Center
+            Vec3::new(2.0, 1.0, 2.0),   // Corner 1
+            Vec3::new(8.0, 1.0, 2.0),   // Corner 2  
+            Vec3::new(2.0, 1.0, 8.0),   // Corner 3
+            Vec3::new(8.0, 1.0, 8.0),   // Corner 4
+            Vec3::new(3.0, 1.0, 5.0),   // Mid-left
+            Vec3::new(7.0, 1.0, 5.0),   // Mid-right
+            Vec3::new(5.0, 1.0, 3.0),   // Mid-top
+        ];
+
+        // Add strategic lights first
+        let strategic_count = count.min(positions.len());
+        for i in 0..strategic_count {
+            let light_type = match i % 4 {
+                0 => LightSource::energy(1.5, 4.0),
+                1 => LightSource::warning(1.5, 4.0),
+                2 => LightSource::control(1.5, 4.0),
+                _ => LightSource::ambient(1.0, 3.0),
+            };
+
+            self.world.spawn()
+                .with(Transform::new(positions[i]))
+                .with(light_type)
+                .build();
+        }
+        
+        // Add random lights if more are needed
+        if count > strategic_count {
+            use ::rand::Rng;
+            let mut rng = ::rand::thread_rng();
+            
+            for i in strategic_count..count {
+                let x = rng.gen_range(1.0..9.0);
+                let y = 1.0;
+                let z = rng.gen_range(1.0..9.0);
+                
+                let position = Vec3::new(x, y, z);
+                
+                let light_type = match i % 4 {
+                    0 => LightSource::warning(rng.gen_range(0.5..2.0), rng.gen_range(2.0..6.0)),
+                    1 => LightSource::energy(rng.gen_range(0.5..2.0), rng.gen_range(2.0..6.0)),
+                    2 => LightSource::control(rng.gen_range(0.5..2.0), rng.gen_range(2.0..6.0)),
+                    _ => LightSource::ambient(rng.gen_range(0.3..1.5), rng.gen_range(1.0..4.0)),
+                };
+
+                self.world.spawn()
+                    .with(Transform::new(position))
+                    .with(light_type)
+                    .build();
+            }
+        }
     }
 }
 

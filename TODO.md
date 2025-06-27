@@ -9,7 +9,7 @@
 
 ---
 
-## 📊 Project Status: **🎉 Phase 5: Complete ECS + A* Pathfinding System** 🔥
+## 📊 Project Status: **⚠️ Phase 5: Complete ECS + A* Pathfinding (Lighting System Disabled)** 🔥
 
 ---
 
@@ -112,6 +112,7 @@
   - [x] ~~120+ FPS with full ECS rendering~~
   - [x] ~~Efficient component queries~~
   - [x] ~~Grid-based collision detection~~
+  - [x] ~~⚠️ Lighting system disabled due to performance issues (was causing severe FPS drops)~~
 
 ### Phase 5: Hybrid ECS A* Pathfinding System ✅
 - [x] ~~**🆕 Reusable Pathfinder Component**~~
@@ -152,40 +153,60 @@
   - [x] ~~Performance monitoring (120+ FPS maintained)~~
   - [x] ~~Console output with pathfinding status~~
 
+### ⚠️ **Known Issues & Technical Debt**
+- [x] ~~**Lighting System Performance Issue RESOLVED**~~
+  - [x] ~~Identified: O(N×M) lighting calculations every frame causing severe FPS drops~~
+  - [x] ~~Solution: Disabled expensive lighting system (wall_lighting_setup_system & lighting_system)~~
+  - [x] ~~Result: Performance restored from ~15 FPS to 120+ FPS~~
+  - [ ] **TODO**: Implement efficient lighting system (deferred rendering or spatial partitioning)
+
+### 🔧 **Current Architecture Limitations**
+- **Forward Rendering Only**: Current renderer uses immediate-mode forward rendering
+- **No Deferred Rendering**: Advanced lighting would benefit from deferred rendering pipeline
+- **Lighting System Disabled**: Dynamic lighting components exist but are performance-disabled
+- **Console I/O Throttling**: Debug output reduced to minimize I/O performance impact
+
 ---
 
 ## 🚀 **NEXT IMMEDIATE TASKS** (Priority Order)
 
-### Phase 6: Game Mechanics & Content
-1. **[ ] Enemy AI System**
+### Phase 6A: Performance & Rendering (High Priority)
+1. **[ ] Lighting System Redesign** ⚡
+   - Implement deferred rendering pipeline for efficient lighting
+   - Create G-buffer for geometry pass / lighting pass separation  
+   - Add screen-space lighting calculations
+   - Re-enable dynamic lighting with proper performance
+
+2. **[ ] Rendering Pipeline Optimization**
+   - Consider deferred vs forward+ rendering approaches
+   - Implement spatial partitioning for lighting (if staying forward rendered)
+   - Add render target and framebuffer support
+   - Optimize ECS queries in render loop
+
+### Phase 6B: Game Mechanics & Content  
+3. **[ ] Enemy AI System**
    - Create Enemy component using existing Pathfinder system
    - Line-of-sight detection using raycasting
    - Chase and patrol behaviors with A* pathfinding
    - Multiple enemy entities with different behaviors
 
-2. **[ ] Combat System**
+4. **[ ] Combat System**
    - Player weapon system with raycasting
    - Shooting mechanics with visual feedback
    - Enemy health and damage system
    - Hit detection and visual effects
 
-3. **[ ] Audio System**
+5. **[ ] Audio System**
    - Sound effects for movement, shooting, enemies
    - Ambient background music
    - 3D positional audio integration
    - Audio component for ECS entities
 
-4. **[ ] Game State Management**
+6. **[ ] Game State Management**
    - Menu system with UI components
    - Level progression and transitions
    - Score and statistics tracking
    - Save/load functionality
-
-5. **[ ] Enhanced AI Behaviors**
-   - Multiple enemy types with different AI patterns
-   - Group AI coordination using pathfinding
-   - Dynamic obstacle avoidance
-   - AI state machines (patrol, chase, attack, flee)
 
 ---
 

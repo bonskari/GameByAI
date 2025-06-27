@@ -52,8 +52,8 @@ async fn run_game_loop(mut game_state: GameState, test_duration: Option<u64>) {
         
         frame_counter += 1;
         
-        // Enhanced performance monitoring every 60 frames
-        if frame_counter % 60 == 0 {
+        // Reduced performance monitoring - only every 5 seconds to avoid console I/O bottleneck
+        if frame_counter % 300 == 0 {
             let fps = get_fps() as f32;
             let performance_rating = if fps > 200.0 { "🚀 BLAZING" } 
                                    else if fps > 150.0 { "🔥 EXCELLENT" }
@@ -61,7 +61,7 @@ async fn run_game_loop(mut game_state: GameState, test_duration: Option<u64>) {
                                    else if fps > 60.0 { "⚠️ OKAY" }
                                    else { "❌ SLOW" };
             
-            println!("Game running... Frame: {}, FPS: {:.0} {}", frame_counter, fps, performance_rating);
+            println!("Performance: Frame {}, FPS: {:.0} {}", frame_counter, fps, performance_rating);
         }
         
         // Check for exit conditions
@@ -122,14 +122,17 @@ async fn run_game() {
     println!("GameByAI shutting down...");
 }
 
-/// Run visual tests (same as normal game + test bot)
+/// Run visual tests (lighting performance tests + bot navigation tests)
 pub async fn run_visual_tests(test_duration: u64, auto_close: bool) {
-    println!("🤖 Starting automated visual tests...");
-    println!("   Duration: {}s", test_duration);
+    println!("🤖 Starting comprehensive visual tests...");
+    println!("   Bot navigation duration: {}s", test_duration);
     println!("   Auto-close: {}", auto_close);
     
     // Initialize exactly like normal game
     let mut game_state = initialize_game().await;
+    
+    // Start lighting performance tests (component-based)
+    game_state.ecs_state.start_lighting_tests();
     
     // Add test bot on top of normal game
     game_state.ecs_state.attach_test_bot(test_duration);

@@ -14,7 +14,7 @@ pub struct Cli {
 pub enum Commands {
     /// Run automated tests
     Test {
-        /// Specific test to run (all, graphics, movement, collision)
+        /// Specific test to run (all, graphics, movement, collision, texture, pitch, position, lighting)
         #[arg(default_value = "all")]
         test_type: String,
         /// Timeout in seconds for each test
@@ -24,10 +24,10 @@ pub enum Commands {
         #[arg(short, long)]
         verbose: bool,
     },
-    /// Run automated visual tests with bot movement
+    /// Run automated visual tests with bot movement and lighting performance
     #[command(name = "visual-test")]
     VisualTest {
-        /// Test duration in seconds
+        /// Test duration in seconds (for bot navigation phase)
         #[arg(short, long, default_value = "15")]
         duration: u64,
         /// Disable auto-close after test completion

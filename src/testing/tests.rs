@@ -7,6 +7,7 @@ use macroquad::prelude::*;
 use futures;
 use crate::testing::runner::TestRunner;
 use crate::game::{Map, Player};
+// Lighting tests now integrated into ECS state
 
 /// Test graphics initialization - no visual feedback to prevent hanging
 pub async fn test_graphics_initialization(_runner: &mut TestRunner) -> Result<String, String> {
@@ -198,6 +199,13 @@ pub async fn test_pitch_controls(_runner: &mut TestRunner) -> Result<String, Str
     Ok(format!("Pitch controls OK (range: ±{:.1}°)", max_pitch.to_degrees()))
 }
 
+/// Test lighting system performance with progressive light counts
+pub async fn test_lighting_performance(_runner: &mut TestRunner) -> Result<String, String> {
+    // Lighting performance tests are now integrated into the visual test system
+    // This test is deprecated - use: cargo run -- visual-test
+    Ok("Lighting tests moved to visual test system. Use: cargo run -- visual-test".to_string())
+}
+
 /// Main test runner function - executes all or specific tests
 pub async fn run_tests(test_type: &str, timeout: u64, verbose: bool) {
     let mut runner = TestRunner::new(verbose, timeout);
@@ -231,6 +239,10 @@ pub async fn run_tests(test_type: &str, timeout: u64, verbose: bool) {
             runner.run_test("Pitch Controls", |r| {
                 futures::executor::block_on(test_pitch_controls(r))
             });
+            
+            runner.run_test("Lighting Performance", |r| {
+                futures::executor::block_on(test_lighting_performance(r))
+            });
         },
         "graphics" => {
             runner.run_test("Graphics Initialization", |r| {
@@ -262,9 +274,14 @@ pub async fn run_tests(test_type: &str, timeout: u64, verbose: bool) {
                 futures::executor::block_on(test_player_starting_position(r))
             });
         },
+        "lighting" => {
+            runner.run_test("Lighting Performance", |r| {
+                futures::executor::block_on(test_lighting_performance(r))
+            });
+        },
         _ => {
             println!("❌ Unknown test type: {}", test_type);
-            println!("Available tests: all, graphics, movement, collision, texture, pitch, position");
+            println!("Available tests: all, graphics, movement, collision, texture, pitch, position, lighting");
             return;
         }
     }

@@ -282,6 +282,36 @@ impl Component for StaticRenderer {
     }
 }
 
+impl Renderable for StaticRenderer {
+    fn get_render_data(&self) -> RenderData {
+        let (size, texture_name) = match &self.material_type {
+            MaterialType::Wall { texture_name } => {
+                (Vec3::new(1.0, 2.0, 1.0), Some(texture_name.clone()))
+            },
+            MaterialType::Floor { texture_name } => {
+                (Vec3::new(1.0, 0.05, 1.0), Some(texture_name.clone()))
+            },
+            MaterialType::Ceiling { texture_name } => {
+                (Vec3::new(1.0, 0.05, 1.0), Some(texture_name.clone()))
+            },
+            MaterialType::Prop { texture_name } => {
+                (Vec3::new(0.5, 1.0, 0.5), Some(texture_name.clone()))
+            },
+        };
+        
+        RenderData {
+            render_type: RenderType::Cube { size },
+            color: self.color,
+            texture_name,
+            size,
+        }
+    }
+    
+    fn should_render(&self) -> bool {
+        self.enabled && self.visible
+    }
+}
+
 // Custom Debug implementation to handle Mesh
 impl std::fmt::Debug for StaticRenderer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -1230,6 +1260,21 @@ impl Component for WallMesh {
     }
 }
 
+impl Renderable for WallMesh {
+    fn get_render_data(&self) -> RenderData {
+        RenderData {
+            render_type: if self.mesh.is_some() {
+                RenderType::Mesh
+            } else {
+                RenderType::Custom
+            },
+            color: WHITE, // Meshes typically use their own colors
+            texture_name: None, // Meshes have textures baked in
+            size: Vec3::ONE, // Not used for meshes
+        }
+    }
+}
+
 /// Single mesh component that holds all floor geometry for efficient rendering
 pub struct FloorMesh {
     pub mesh: Option<Mesh>,
@@ -1276,6 +1321,21 @@ impl FloorMesh {
 }
 
 impl Component for FloorMesh {}
+
+impl Renderable for FloorMesh {
+    fn get_render_data(&self) -> RenderData {
+        RenderData {
+            render_type: if self.mesh.is_some() {
+                RenderType::Mesh
+            } else {
+                RenderType::Custom
+            },
+            color: WHITE, // Meshes typically use their own colors
+            texture_name: None, // Meshes have textures baked in
+            size: Vec3::ONE, // Not used for meshes
+        }
+    }
+}
 
 /// Light source component for dynamic lighting effects
 #[derive(Clone, Debug)]
@@ -1473,4 +1533,166 @@ impl Component for LightReceiver {
     fn disable(&mut self) {
         self.enabled = false;
     }
+}
+
+/// Lighting test component - manages progressive lighting test scenarios
+/// Similar to TestBot but for lighting performance testing
+#[derive(Debug, Clone)]
+pub struct LightingTest {
+    pub start_time: std::time::Instant,
+    pub current_phase: usize,
+    pub phase_start_time: std::time::Instant,
+    pub phases: Vec<LightingTestPhase>,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct LightingTestPhase {
+    pub name: String,
+    pub light_count: usize,
+    pub duration_seconds: f32,
+    pub background_color: Color,
+}
+
+impl LightingTest {
+    pub fn new() -> Self {
+        let phases = vec![
+            LightingTestPhase {
+                name: "Baseline (No Lights)".to_string(),
+                light_count: 0,
+                duration_seconds: 3.0,
+                background_color: Color::new(0.1, 0.1, 0.2, 1.0), // Dark blue
+            },
+            LightingTestPhase {
+                name: "Single Light".to_string(),
+                light_count: 1,
+                duration_seconds: 3.0,
+                background_color: Color::new(0.2, 0.1, 0.1, 1.0), // Dark red
+            },
+            LightingTestPhase {
+                name: "Few Lights".to_string(),
+                light_count: 8,
+                duration_seconds: 3.0,
+                background_color: Color::new(0.1, 0.2, 0.1, 1.0), // Dark green
+            },
+            LightingTestPhase {
+                name: "Many Lights".to_string(),
+                light_count: 50,
+                duration_seconds: 3.0,
+                background_color: Color::new(0.2, 0.2, 0.1, 1.0), // Dark yellow
+            },
+            LightingTestPhase {
+                name: "Stress Test".to_string(),
+                light_count: 100,
+                duration_seconds: 3.0,
+                background_color: Color::new(0.2, 0.1, 0.2, 1.0), // Dark purple
+            },
+        ];
+
+        Self {
+            start_time: std::time::Instant::now(),
+            current_phase: 0,
+            phase_start_time: std::time::Instant::now(),
+            phases,
+            enabled: true,
+        }
+    }
+
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    pub fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    pub fn disable(&mut self) {
+        self.enabled = false;
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    pub fn get_current_phase(&self) -> Option<&LightingTestPhase> {
+        self.phases.get(self.current_phase)
+    }
+
+    pub fn get_progress(&self) -> (usize, usize, f32) {
+        let total_phases = self.phases.len();
+        let progress = if total_phases > 0 {
+            (self.current_phase + 1) as f32 / total_phases as f32
+        } else {
+            1.0
+        };
+        (self.current_phase + 1, total_phases, progress)
+    }
+
+    pub fn is_finished(&self) -> bool {
+        self.current_phase >= self.phases.len()
+    }
+
+    pub fn get_phase_elapsed_time(&self) -> f32 {
+        self.phase_start_time.elapsed().as_secs_f32()
+    }
+
+    pub fn should_advance_phase(&self) -> bool {
+        if let Some(phase) = self.get_current_phase() {
+            self.get_phase_elapsed_time() >= phase.duration_seconds
+        } else {
+            false
+        }
+    }
+
+    pub fn advance_phase(&mut self) {
+        if self.current_phase < self.phases.len() {
+            self.current_phase += 1;
+            self.phase_start_time = std::time::Instant::now();
+        }
+    }
+
+    pub fn get_total_elapsed_time(&self) -> f32 {
+        self.start_time.elapsed().as_secs_f32()
+    }
+}
+
+impl Component for LightingTest {
+    fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    fn disable(&mut self) {
+        self.enabled = false;
+    }
+}
+
+/// Trait for components that can be rendered
+pub trait Renderable: Component {
+    /// Get the render data for this component
+    fn get_render_data(&self) -> RenderData;
+    
+    /// Check if this component should be rendered
+    fn should_render(&self) -> bool {
+        self.is_enabled()
+    }
+}
+
+/// Data needed to render any component
+pub struct RenderData {
+    pub render_type: RenderType,
+    pub color: Color,
+    pub texture_name: Option<String>,
+    pub size: Vec3,
+}
+
+/// Types of rendering
+pub enum RenderType {
+    Mesh, // Will use mesh from component directly
+    Cube { size: Vec3 },
+    Custom,
 } 
