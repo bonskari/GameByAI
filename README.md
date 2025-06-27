@@ -254,6 +254,6 @@ The visual test will:
 
 This is a learning project focused on AI-assisted game development. Feel free to explore the code and suggest improvements!
 
-## 📝 License
+## Try these techniques
 
-[Add license information] 
+https://diglib.eg.org/items/93fc78c0-71fa-4511-8564-a7e5268bf27a
