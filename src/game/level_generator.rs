@@ -504,4 +504,89 @@ impl LevelMeshBuilder {
 
         *vertex_count += 4;
     }
+
+    /// Generate a single mesh containing all ceiling geometry with proper UV mapping
+    pub async fn generate_ceiling_mesh_with_texture(&self) -> Mesh {
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        let mut vertex_count = 0u16;
+
+        // Generate ceiling for entire map area (both walls and floors get ceiling)
+        for y in 0..self.map.height {
+            for x in 0..self.map.width {
+                // Create ceiling tile at each position
+                let pos = Vec3::new(x as f32 + 0.5, 2.0, y as f32 + 0.5);
+                
+                // Create a horizontal ceiling quad (1x1 units) facing downward
+                self.add_ceiling_face(
+                    &mut vertices,
+                    &mut indices,
+                    &mut vertex_count,
+                    pos,
+                    [
+                        vec3(-0.5, 0.0, 0.5),   // Bottom left (looking up)
+                        vec3(0.5, 0.0, 0.5),    // Bottom right
+                        vec3(0.5, 0.0, -0.5),   // Top right
+                        vec3(-0.5, 0.0, -0.5),  // Top left
+                    ],
+                );
+            }
+        }
+
+        // Load ceiling texture
+        let texture = if let Ok(mut tex) = load_texture("assets/textures/ceiling.png").await {
+            tex.set_filter(FilterMode::Nearest);
+            Some(tex)
+        } else {
+            None
+        };
+
+        println!("Generated ceiling mesh with {} vertices and {} faces", vertices.len(), indices.len() / 3);
+
+        Mesh {
+            vertices,
+            indices,
+            texture,
+        }
+    }
+
+    /// Add a ceiling face with proper UV coordinates (facing downward)
+    fn add_ceiling_face(
+        &self,
+        vertices: &mut Vec<Vertex>,
+        indices: &mut Vec<u16>,
+        vertex_count: &mut u16,
+        center_pos: Vec3,
+        local_positions: [Vec3; 4],
+    ) {
+        // Create vertices with 1:1 UV mapping (each ceiling tile uses full texture)
+        for (i, local_pos) in local_positions.iter().enumerate() {
+            let world_pos = center_pos + *local_pos;
+            
+            // UV coordinates that use the full 0.0-1.0 range (simple 1:1 mapping)
+            let uv = match i {
+                0 => vec2(0.0, 0.0),     // Bottom left
+                1 => vec2(1.0, 0.0),     // Bottom right
+                2 => vec2(1.0, 1.0),     // Top right
+                3 => vec2(0.0, 1.0),     // Top left
+                _ => vec2(0.0, 0.0),
+            };
+
+            vertices.push(Vertex {
+                position: world_pos,
+                uv,
+                color: [255, 255, 255, 255], // White color to let texture show through
+                normal: Vec4::new(0.0, -1.0, 0.0, 0.0), // Normal pointing down for ceiling
+            });
+        }
+
+        // Add indices for two triangles (making a quad) - wind clockwise for downward facing
+        let base = *vertex_count;
+        indices.extend_from_slice(&[
+            base, base + 2, base + 1,      // First triangle (clockwise)
+            base, base + 3, base + 2,      // Second triangle (clockwise)
+        ]);
+
+        *vertex_count += 4;
+    }
 } 

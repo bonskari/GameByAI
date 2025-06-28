@@ -8,6 +8,7 @@ use super::map::{Map, WallType};
 use super::input::PlayerInput;
 use crate::game::level_generator::LevelMeshBuilder;
 use std::time::Instant;
+use std::collections::HashMap;
 
 /// ECS-based game state that manages all entities and components
 pub struct EcsGameState {
@@ -60,20 +61,6 @@ impl EcsGameState {
         let mut floor_count = 0;
         let mut ceiling_count = 0;
         
-        // Create ceiling entities for the entire map (keeping individual entities for now)
-        for y in 0..self.map.height {
-            for x in 0..self.map.width {
-                // Ceiling entity at each position
-                self.world.spawn()
-                    .with(Transform::new(Vec3::new(x as f32 + 0.5, 2.0, y as f32 + 0.5)))
-                    .with(StaticRenderer::ceiling("ceiling.png".to_string()))
-                    .with(Collider::static_trigger(ColliderShape::Box { size: Vec3::new(1.0, 0.1, 1.0) }))
-                    .with(Ceiling::new())
-                    .build();
-                ceiling_count += 1;
-            }
-        }
-        
         // Create separate wall meshes for each texture type
         let mesh_builder = LevelMeshBuilder::new(self.map.clone());
         
@@ -85,8 +72,9 @@ impl EcsGameState {
             if !wall_mesh.vertices.is_empty() {
                 let _wall_mesh_entity = self.world.spawn()
                     .with(Transform::new(Vec3::ZERO))  // World origin since mesh contains world coordinates
-                    .with(WallMesh::new().with_mesh(wall_mesh))
+                    .with(StaticMesh::walls(wall_mesh))
                     .build();
+                wall_count += 1;
             }
         }
         
@@ -94,10 +82,17 @@ impl EcsGameState {
         let floor_mesh = mesh_builder.generate_floor_mesh_with_texture().await;
         let _floor_mesh_entity = self.world.spawn()
             .with(Transform::new(Vec3::ZERO))
-            .with(FloorMesh::new(floor_mesh))
+            .with(StaticMesh::floor(floor_mesh))
             .build();
-        
         floor_count = 1; // One floor mesh entity
+        
+        // Generate and create the single ceiling mesh entity
+        let ceiling_mesh = mesh_builder.generate_ceiling_mesh_with_texture().await;
+        let _ceiling_mesh_entity = self.world.spawn()
+            .with(Transform::new(Vec3::ZERO))
+            .with(StaticMesh::ceiling(ceiling_mesh))
+            .build();
+        ceiling_count = 1; // One ceiling mesh entity
         
         // Create collision entities for walls (separate from rendering)
         for y in 0..self.map.height {
@@ -125,8 +120,6 @@ impl EcsGameState {
                 }
             }
         }
-        
-        wall_count += 1; // One additional entity for the rendering mesh
         
         println!("ECS: Populated world with {} walls, {} floors, {} ceilings ({} total entities)", 
                  wall_count, floor_count, ceiling_count, wall_count + floor_count + ceiling_count + 1); // +1 for player
@@ -179,6 +172,8 @@ impl EcsGameState {
         // Debug: Print test status (reduced frequency to avoid console I/O)
         if test_active && self.frame_count % 900 == 0 { // Every 15 seconds at 60fps
             println!("🔍 DEBUG: Test active, user input disabled");
+            // Print detailed debug info every 15 seconds during tests
+            self.print_debug_info();
         }
         
         // For now, implement basic player movement directly in the ECS state
@@ -404,20 +399,25 @@ impl EcsGameState {
         }
     }
     
-    /// Attach a test bot component to the player entity with integrated performance testing
+    /// Attach a test bot to automatically navigate through waypoints for testing
     pub fn attach_test_bot(&mut self, test_duration_seconds: u64) {
-        if let Some(player_entity) = self.player_entity {
-            let test_bot = TestBot::new(test_duration_seconds);
-            let pathfinder = Pathfinder::new(2.0, 5.0); // Slower movement for better precision, faster rotation
-            
-            self.world.add(player_entity, test_bot);
-            self.world.add(player_entity, pathfinder);
-            
-            // Run integrated performance test
-            Self::run_integrated_performance_test();
-            
-            println!("🤖 TestBot attached with A* pathfinding capabilities");
-        }
+        // Print initial debug state
+        println!("🔍 ECS Debug Info - Test Start:");
+        self.print_debug_info();
+        
+        // Create test bot entity with all necessary components
+        let entity = self.world.spawn()
+            .with(Transform::new(Vec3::new(1.5, 0.6, 1.5)))  // Start position
+            .with(Player::new())
+            .with(TestBot::new(test_duration_seconds))
+            .with(Pathfinder::new(2.0, 5.0))  // movement_speed, rotation_speed
+            .with(Collider::dynamic_solid(ColliderShape::Box { size: Vec3::new(0.5, 1.8, 0.5) }))
+            .with(Velocity::new())
+            .entity();
+        
+        self.player_entity = Some(entity);
+        
+        println!("🤖 Test bot attached: Entity {:?} with {} second duration", entity, test_duration_seconds);
     }
     
     /// Check if any entity has test bot component
@@ -1041,6 +1041,135 @@ impl EcsGameState {
     /// Update the map for pathfinding (moved from PathfindingSystem)
     pub fn update_pathfinding_map(&mut self, map: Map) {
         self.pathfinding_algorithms.update_map(map);
+    }
+
+    /// Get detailed debug information about ECS world state
+    pub fn get_debug_info(&self) -> String {
+        let mut debug_info = String::new();
+        
+        debug_info.push_str("🔍 === ECS DEBUG INFO ===\n");
+        
+        // Count entities by type
+        let mut entity_counts = HashMap::new();
+        let mut total_entities = 0;
+        
+        // Count different entity types
+        for (entity, _) in self.world.query_1::<Transform>() {
+            if !self.world.is_valid(entity) || !entity.enabled {
+                continue;
+            }
+            
+            total_entities += 1;
+            
+            // Determine entity type based on components
+            let entity_type = if self.world.has::<Player>(entity) {
+                "Player"
+            } else if self.world.has::<TestBot>(entity) {
+                "TestBot"
+            } else if self.world.has::<StaticMesh>(entity) {
+                // Determine StaticMesh type
+                if let Some(static_mesh) = self.world.get::<StaticMesh>(entity) {
+                    match static_mesh.mesh_type {
+                        StaticMeshType::Walls => "WallMesh",
+                        StaticMeshType::Floor => "FloorMesh", 
+                        StaticMeshType::Ceiling => "CeilingMesh",
+                        StaticMeshType::Props => "PropMesh",
+                    }
+                } else {
+                    "StaticMesh"
+                }
+            } else if self.world.has::<Wall>(entity) {
+                "Wall"
+            } else if self.world.has::<Floor>(entity) {
+                "Floor"
+            } else if self.world.has::<Ceiling>(entity) {
+                "Ceiling"
+            } else if self.world.has::<Prop>(entity) {
+                "Prop"
+            } else if self.world.has::<LightSource>(entity) {
+                "LightSource"
+            } else if self.world.has::<StaticRenderer>(entity) {
+                "StaticRenderer"
+            } else {
+                "Unknown"
+            };
+            
+            *entity_counts.entry(entity_type).or_insert(0) += 1;
+        }
+        
+        debug_info.push_str(&format!("📊 Total Active Entities: {}\n", total_entities));
+        debug_info.push_str("📋 Entity Types:\n");
+        
+        for (entity_type, count) in &entity_counts {
+            debug_info.push_str(&format!("   • {}: {}\n", entity_type, count));
+        }
+        
+        // Count components with specific functionality
+        let mut pathfinder_count = 0;
+        let mut collider_count = 0;
+        let mut velocity_count = 0;
+        let mut light_receiver_count = 0;
+        
+        for (entity, _) in self.world.query_1::<Transform>() {
+            if !self.world.is_valid(entity) || !entity.enabled {
+                continue;
+            }
+            
+            if self.world.has::<Pathfinder>(entity) {
+                pathfinder_count += 1;
+            }
+            if self.world.has::<Collider>(entity) {
+                collider_count += 1;
+            }
+            if self.world.has::<Velocity>(entity) {
+                velocity_count += 1;
+            }
+            if self.world.has::<LightReceiver>(entity) {
+                light_receiver_count += 1;
+            }
+        }
+        
+        debug_info.push_str("🔧 Component Usage:\n");
+        debug_info.push_str(&format!("   • Pathfinder: {}\n", pathfinder_count));
+        debug_info.push_str(&format!("   • Collider: {}\n", collider_count));
+        debug_info.push_str(&format!("   • Velocity: {}\n", velocity_count));
+        debug_info.push_str(&format!("   • LightReceiver: {}\n", light_receiver_count));
+        
+        // Special entities status
+        debug_info.push_str("🎯 Special Entities:\n");
+        debug_info.push_str(&format!("   • Player Entity: {:?}\n", self.player_entity));
+        debug_info.push_str(&format!("   • Middle Pillars: {} ({})\n", 
+            self.middle_pillar_entities.len(),
+            if self.pillars_enabled { "ENABLED" } else { "DISABLED" }
+        ));
+        
+        // Test status
+        if self.has_test_bot() {
+            if let Some((current, total, progress)) = self.get_test_bot_progress() {
+                debug_info.push_str(&format!("🤖 Test Bot: {}/{} waypoints ({:.1}%)\n", current, total, progress * 100.0));
+            } else {
+                debug_info.push_str("🤖 Test Bot: Active (initializing)\n");
+            }
+        } else {
+            debug_info.push_str("🤖 Test Bot: Inactive\n");
+        }
+        
+        if self.has_lighting_test() {
+            if let Some((test_name, light_count, elapsed, duration, _)) = self.get_lighting_test_info() {
+                debug_info.push_str(&format!("💡 Lighting Test: {} ({} lights, {:.1}s/{:.1}s)\n", 
+                    test_name, light_count, elapsed, duration));
+            }
+        } else {
+            debug_info.push_str("💡 Lighting Test: Inactive\n");
+        }
+        
+        debug_info.push_str("🔍 === END DEBUG INFO ===\n");
+        debug_info
+    }
+    
+    /// Print comprehensive debug information
+    pub fn print_debug_info(&self) {
+        println!("{}", self.get_debug_info());
     }
 }
 

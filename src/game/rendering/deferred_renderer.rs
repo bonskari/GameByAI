@@ -7,7 +7,7 @@
 
 use macroquad::prelude::*;
 use crate::game::Player;
-use crate::ecs::{World, Transform, StaticRenderer, LightSource, LightReceiver, WallMesh, FloorMesh};
+use crate::ecs::{World, Transform, StaticRenderer, LightSource, LightReceiver, StaticMesh};
 use std::collections::HashMap;
 
 /// G-Buffer textures for deferred rendering
@@ -196,20 +196,10 @@ impl DeferredRenderer {
         
         let mut geometry_count = 0;
 
-        // Render wall meshes to G-buffer
-        for (entity, transform, wall_mesh) in world.query_2::<Transform, WallMesh>() {
-            if world.is_valid(entity) && entity.enabled && wall_mesh.is_enabled() && transform.is_enabled() {
-                if let Some(mesh) = &wall_mesh.mesh {
-                    draw_mesh(mesh);
-                    geometry_count += 1;
-                }
-            }
-        }
-
-        // Render floor meshes to G-buffer
-        for (entity, transform, floor_mesh) in world.query_2::<Transform, FloorMesh>() {
-            if world.is_valid(entity) && entity.enabled && floor_mesh.is_enabled() && transform.is_enabled() {
-                if let Some(mesh) = &floor_mesh.mesh {
+        // Render all static meshes to G-buffer (walls, floor, ceiling, props)
+        for (entity, transform, static_mesh) in world.query_2::<Transform, StaticMesh>() {
+            if world.is_valid(entity) && entity.enabled && static_mesh.is_enabled() && transform.is_enabled() {
+                if let Some(mesh) = &static_mesh.mesh {
                     draw_mesh(mesh);
                     geometry_count += 1;
                 }

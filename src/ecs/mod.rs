@@ -35,7 +35,7 @@ pub use components::*;
 pub use components::{
     Transform, Velocity, StaticRenderer, MaterialType, Collider, ColliderShape, 
     ColliderMaterial, Player, Wall, Floor, Ceiling, Prop, TestBot, TestWaypoint, Pathfinder,
-    WallMesh, FloorMesh, LightSource, LightSourceType, LightReceiver, LightingTest,
+    StaticMesh, StaticMeshType, LightSource, LightSourceType, LightReceiver, LightingTest,
     Renderable, RenderData, RenderType,
 };
 

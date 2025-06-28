@@ -20,7 +20,7 @@ if %errorlevel% neq 0 (
         winget install Rustlang.Rustup
         echo.
         echo Installation complete! Please restart your terminal and run this script again.
-        pause
+        
         exit /b 1
     ) else (
         echo.
@@ -29,7 +29,7 @@ if %errorlevel% neq 0 (
         echo 2. Download and run rustup-init.exe
         echo 3. Restart your terminal
         echo 4. Run this script again
-        pause
+        
         exit /b 1
     )
 )
@@ -89,7 +89,7 @@ if "%COMMAND%"=="run" (
     echo   clean        - Clean build files
     echo   textures [type] - Generate AI textures
     echo.
-    pause
+    
     exit /b 1
 )
 
@@ -97,4 +97,4 @@ echo.
 echo ================================
 echo   Execution finished
 echo ================================
-pause 
+ 
