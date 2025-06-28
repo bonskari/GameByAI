@@ -1,7 +1,27 @@
 //! Pathfinding and test bot components
 
 use macroquad::prelude::*;
-use crate::ecs::Component;
+use crate::ecs::{Component, component::{AutoUpdatable, ComponentRegistration}};
+
+// Auto-register TestBot component
+inventory::submit! {
+    ComponentRegistration {
+        type_name: "TestBot",
+        updater: |world, delta_time| {
+            world.update_component_type::<TestBot>(delta_time);
+        },
+    }
+}
+
+// Auto-register Pathfinder component  
+inventory::submit! {
+    ComponentRegistration {
+        type_name: "Pathfinder",
+        updater: |world, delta_time| {
+            world.update_component_type::<Pathfinder>(delta_time);
+        },
+    }
+}
 
 /// Test waypoint component for pathfinding demonstrations
 #[derive(Debug, Clone)]
@@ -169,6 +189,26 @@ impl Component for TestBot {
     }
 }
 
+impl AutoUpdatable for TestBot {
+    fn auto_update(&mut self, _entity: crate::ecs::Entity, _delta_time: f32) {
+        // Check if test bot is finished
+        if self.is_finished() {
+            println!("🤖 Visual test completed after {:.1}s", self.start_time.elapsed().as_secs_f32());
+            return;
+        }
+
+        // Update internal state only - we can't access other components from here
+        // The actual waypoint advancement logic will need to be handled by EcsGameState
+        // since it requires cross-component communication
+        
+        // This is a self-contained update that only modifies TestBot's internal state
+        // For example, we could update timers, internal counters, etc.
+        println!("🤖 TestBot self-update: waypoint {}/{}", 
+                 self.current_waypoint, 
+                 self.waypoints.len());
+    }
+}
+
 impl Pathfinder {
     pub fn new(movement_speed: f32, rotation_speed: f32) -> Self {
         Self {
@@ -276,5 +316,25 @@ impl Component for Pathfinder {
 
     fn disable(&mut self) {
         self.enabled = false;
+    }
+}
+
+impl AutoUpdatable for Pathfinder {
+    fn auto_update(&mut self, _entity: crate::ecs::Entity, delta_time: f32) {
+        // Update internal timers and state
+        // We can't access Transform from here, so stuck detection will remain in EcsGameState
+        
+        // Update path following state
+        if !self.current_path.is_empty() {
+            // Update internal pathfinding timers
+            println!("🗺️ Pathfinder self-update: {} path points remaining", self.current_path.len());
+        }
+        
+        // Update stuck detection timer (but we can't get current position from here)
+        // This will be handled by EcsGameState which has access to both Transform and Pathfinder
+        self.stuck_time += delta_time;
+        
+        // Note: Actual pathfinding movement still needs to be handled by EcsGameState
+        // because it requires access to PathfindingAlgorithms and needs to modify Transform components
     }
 } 

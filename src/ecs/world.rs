@@ -4,6 +4,46 @@ use crate::ecs::{Entity, EntityManager, ComponentManager, Component};
 use std::any::Any;
 use std::any::TypeId;
 
+/// Read-only view of the world for component updates
+pub struct WorldView<'a> {
+    entities: &'a EntityManager,
+    components: &'a ComponentManager,
+}
+
+impl<'a> WorldView<'a> {
+    pub fn new(entities: &'a EntityManager, components: &'a ComponentManager) -> Self {
+        Self { entities, components }
+    }
+
+    /// Get a component for an entity (read-only)
+    pub fn get<T: Component>(&self, entity: Entity) -> Option<&T> {
+        if self.entities.is_valid(entity) {
+            self.components.get(entity)
+        } else {
+            None
+        }
+    }
+
+    /// Check if an entity is valid
+    pub fn is_valid(&self, entity: Entity) -> bool {
+        self.entities.is_valid(entity)
+    }
+
+    /// Check if an entity has a component
+    pub fn has<T: Component>(&self, entity: Entity) -> bool {
+        if self.entities.is_valid(entity) {
+            self.components.has::<T>(entity)
+        } else {
+            false
+        }
+    }
+
+    /// Get all entities
+    pub fn all_entities(&self) -> impl Iterator<Item = Entity> + '_ {
+        self.entities.all_entities().into_iter()
+    }
+}
+
 /// The main ECS world that contains all entities, components, and systems
 pub struct World {
     /// Entity management
@@ -189,6 +229,49 @@ impl World {
         // For now, we'll just return None for both to avoid borrowing issues
         // TODO: Implement proper multi-component access
         (None, None)
+    }
+
+    /// Automatically update all registered components
+    pub fn update_all_components(&mut self, delta_time: f32) {
+        // Use inventory to discover and update all registered components
+        for registration in inventory::iter::<crate::ecs::component::ComponentRegistration> {
+            (registration.updater)(self, delta_time);
+        }
+    }
+
+    /// Update all components of a specific type that implement AutoUpdatable
+    pub fn update_component_type<T: crate::ecs::component::AutoUpdatable>(&mut self, delta_time: f32) {
+        // Collect entities with this component type to avoid borrowing issues
+        let entities_with_component: Vec<Entity> = {
+            if let Some(storage) = self.storage::<T>() {
+                storage.entities().to_vec()
+            } else {
+                return; // No storage for this component type
+            }
+        };
+
+        // Update each component
+        for entity in entities_with_component {
+            if !self.is_valid(entity) {
+                continue;
+            }
+
+            // Check if component should be updated
+            let should_update = {
+                if let Some(component) = self.get::<T>(entity) {
+                    entity.enabled && component.is_enabled()
+                } else {
+                    false
+                }
+            };
+
+            if should_update {
+                // Update the component (self-contained only)
+                if let Some(component) = self.get_mut::<T>(entity) {
+                    component.auto_update(entity, delta_time);
+                }
+            }
+        }
     }
 }
 

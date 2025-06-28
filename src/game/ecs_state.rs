@@ -448,32 +448,35 @@ impl EcsGameState {
     
     /// Update all ECS systems and components - unified approach
     fn update_ecs_systems(&mut self, delta_time: f32) {
-        // Process all component types that need updates
-        self.process_test_components(delta_time);
-        self.process_lighting_components(delta_time);
+        // Auto-update all registered components using inventory system
+        // This handles self-contained component updates (TestBot, Pathfinder, etc.)
+        self.world.update_all_components(delta_time);
         
-        // Future: Could be made fully automatic with component registration
-        // self.process_all_updatable_components(delta_time);
+        // Process cross-component systems that need access to external resources
+        self.process_pathfinding_systems(delta_time);  // Needs PathfindingAlgorithms
+        self.process_lighting_systems(delta_time);     // Needs cross-component queries
     }
 
-    /// Process all entities with TestBot components
-    fn process_test_components(&mut self, delta_time: f32) {
-        // Collect entities first to avoid borrowing conflicts
-        let test_bot_entities: Vec<crate::ecs::Entity> = {
+    /// Process pathfinding systems that need access to PathfindingAlgorithms
+    fn process_pathfinding_systems(&mut self, delta_time: f32) {
+        // Collect entities with pathfinders to avoid borrowing conflicts
+        let pathfinder_entities: Vec<crate::ecs::Entity> = {
             let mut entities = Vec::new();
-            for (entity, _test_bot) in self.world.query_1::<TestBot>() {
+            for (entity, _pathfinder) in self.world.query_1::<Pathfinder>() {
                 entities.push(entity);
             }
             entities
         };
         
-        // Process pathfinding for all entities with TestBot components
-        for entity in test_bot_entities {
-            // Update pathfinding for this test bot entity
+        // Process pathfinding for all entities that have pathfinder components
+        for entity in pathfinder_entities {
+            // Handle pathfinding logic that needs PathfindingAlgorithms
             self.process_entity_pathfinding(entity, delta_time);
             
-            // Update the test bot's waypoint progression
-            self.update_test_bot_waypoints(entity);
+            // Handle TestBot waypoint progression if this entity has a TestBot
+            if self.world.has::<TestBot>(entity) {
+                self.update_test_bot_waypoints(entity);
+            }
         }
     }
     
@@ -892,7 +895,7 @@ impl EcsGameState {
     }
     
     /// Process all entities with LightingTest components
-    fn process_lighting_components(&mut self, _delta_time: f32) {
+    fn process_lighting_systems(&mut self, _delta_time: f32) {
         // Collect test phase changes first to avoid borrowing conflicts
         let mut phase_changes = Vec::new();
         let mut finished_tests = Vec::new();

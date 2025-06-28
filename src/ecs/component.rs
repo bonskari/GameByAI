@@ -5,6 +5,33 @@ use std::collections::HashMap;
 use crate::ecs::{Entity, ComponentTypeId};
 use crate::ecs::entity::EntityId;
 
+/// Component registration for automatic discovery
+pub struct ComponentRegistration {
+    pub type_name: &'static str,
+    pub updater: fn(&mut crate::ecs::World, f32),
+}
+
+impl ComponentRegistration {
+    pub fn new<T: Component + AutoUpdatable>() -> Self {
+        Self {
+            type_name: std::any::type_name::<T>(),
+            updater: |world, delta_time| {
+                world.update_component_type::<T>(delta_time);
+            },
+        }
+    }
+}
+
+// Collect all registered components at compile time
+inventory::collect!(ComponentRegistration);
+
+/// Trait for components that can automatically update themselves
+/// Components can only modify their own state, not other components
+pub trait AutoUpdatable: Component {
+    /// Update this component instance (self-contained update only)
+    fn auto_update(&mut self, entity: Entity, delta_time: f32);
+}
+
 /// Base trait for all components
 pub trait Component: 'static + Send + Sync {
     /// Get the type ID for this component
@@ -28,6 +55,16 @@ pub trait Component: 'static + Send + Sync {
     /// Components should override this if they have an enabled field
     fn disable(&mut self) {
         // Default implementation does nothing
+    }
+
+    /// Pre-update phase: read-only access to world, components can make decisions
+    fn pre_update(&mut self, _delta_time: f32, _world: &crate::ecs::World, _entity: crate::ecs::Entity) {
+        // Default implementation - components can override
+    }
+
+    /// Update phase: mutable access to world, components can modify other components
+    fn update(&mut self, _delta_time: f32, _world: &mut crate::ecs::World, _entity: crate::ecs::Entity) {
+        // Default implementation - components can override
     }
 }
 
@@ -386,6 +423,28 @@ impl ComponentManager {
     pub fn clear(&mut self) {
         for storage in self.storages.values_mut() {
             storage.clear();
+        }
+    }
+
+    /// Pre-update all components of a specific type
+    pub fn pre_update_components<T: Component>(&mut self, delta_time: f32, world: &crate::ecs::World) {
+        if let Some(storage) = self.storage_mut::<T>() {
+            for (entity, component) in storage.iter_mut() {
+                if entity.enabled && component.is_enabled() {
+                    component.pre_update(delta_time, world, entity);
+                }
+            }
+        }
+    }
+
+    /// Update all components of a specific type
+    pub fn update_components<T: Component>(&mut self, delta_time: f32, world: &mut crate::ecs::World) {
+        if let Some(storage) = self.storage_mut::<T>() {
+            for (entity, component) in storage.iter_mut() {
+                if entity.enabled && component.is_enabled() {
+                    component.update(delta_time, world, entity);
+                }
+            }
         }
     }
 } 
