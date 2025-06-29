@@ -12,26 +12,65 @@ mod testing;
 mod ecs;
 
 use cli::{Cli, Commands};
-use game::GameState;
+use game::{GameState, GameConfig};
 
-/// Window configuration for fullscreen mode with native resolution
+/// Window configuration loaded from config.ini
 fn window_conf() -> Conf {
-    Conf {
-        window_title: "GameByAI - 3D Game Engine".to_owned(),
-        fullscreen: true,
-        window_width: 0,  // 0 means use native resolution
-        window_height: 0, // 0 means use native resolution
-        window_resizable: false,
-        ..Default::default()
-    }
+    // Load configuration from config.ini
+    let config = match GameConfig::load_from_ini("config.ini") {
+        Ok(mut config) => {
+            config.validate_and_fix();
+            config
+        }
+        Err(e) => {
+            println!("⚠️ Failed to load config.ini: {}", e);
+            println!("   Creating default config.ini file...");
+            let default_config = GameConfig::default();
+            if let Err(save_err) = default_config.save_to_ini("config.ini") {
+                println!("❌ Failed to create default config.ini: {}", save_err);
+            } else {
+                println!("✅ Created default config.ini");
+            }
+            default_config
+        }
+    };
+
+    // Log the configuration being used
+    println!("🖼️ Display Config: {}x{} (fullscreen: {}, vsync: {})", 
+             config.display.width, config.display.height, 
+             config.display.fullscreen, config.display.vsync);
+    println!("🎮 Graphics Config: {} quality, max_fps: {}, shadows: {}", 
+             config.graphics.quality, config.graphics.max_fps, config.graphics.shadows);
+    
+    config.get_window_conf()
 }
 
 /// Initialize a new game state with all necessary setup
 async fn initialize_game() -> GameState {
-    let mut game_state = GameState::new();
+    // Load game configuration
+    let config = match GameConfig::load_from_ini("config.ini") {
+        Ok(mut config) => {
+            config.validate_and_fix();
+            config
+        }
+        Err(_) => GameConfig::default(), // Use defaults if config file is missing
+    };
+
+    let mut game_state = GameState::with_config(config.clone());
     
     // Initialize ECS with wall meshes and textures
     game_state.initialize().await;
+    
+    // Initialize hot-reload system if enabled in config
+    if config.is_hot_reload_enabled() {
+        let config_file = config.get_default_level_path();
+        if let Err(e) = game_state.init_hot_reload(config_file) {
+            println!("⚠️ Hot-reload system not available: {}", e);
+            println!("   The game will run normally without hot-reload functionality");
+        }
+    } else {
+        println!("🔧 Hot-reload disabled in configuration");
+    }
     
     // Textures are already loaded in initialize()
     

@@ -15,6 +15,8 @@ pub mod state;
 pub mod rendering;
 pub mod texture_generator;
 pub mod textures;
+pub mod level_data;
+pub mod config;
 
 // Re-export commonly used types
 pub use map::Map;
@@ -23,4 +25,6 @@ pub use level_generator::LevelMeshBuilder;
 pub use input::{InputHandler, PlayerInput};
 pub use state::GameState;
 pub use ecs_state::EcsGameState;
-pub use rendering::DeferredRenderer; 
+pub use rendering::DeferredRenderer;
+pub use level_data::{LevelData, LevelDataHotReload, PlayerConfig, LightConfig, ObjectConfig};
+pub use config::GameConfig; 

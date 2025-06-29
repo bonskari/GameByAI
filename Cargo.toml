@@ -24,6 +24,7 @@ anyhow = "1.0"
 png = "0.17"
 rand = "0.8"
 inventory = "0.3"
+notify = "6.0"
 
 [dev-dependencies]
 # Testing dependencies (only used during development)

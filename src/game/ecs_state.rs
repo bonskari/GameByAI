@@ -20,6 +20,7 @@ pub struct EcsGameState {
     pub middle_pillar_entities: Vec<Entity>,  // Track middle pillars for toggling
     pub pillars_enabled: bool,                // Current state of middle pillars
     pub last_pillar_toggle_time: std::time::Instant, // Track when pillars were last toggled
+    pub use_hardcoded_geometry: bool,         // Whether to create hardcoded walls/floors/ceilings
 }
 
 impl EcsGameState {
@@ -46,6 +47,7 @@ impl EcsGameState {
             middle_pillar_entities: Vec::new(),
             pillars_enabled: true,
             last_pillar_toggle_time: std::time::Instant::now(),
+            use_hardcoded_geometry: true, // Default to true for backward compatibility
         }
     }
     
@@ -55,8 +57,19 @@ impl EcsGameState {
         self.populate_static_geometry().await;
     }
     
+    /// Disable hardcoded geometry creation (use when world config system is active)  
+    pub fn disable_hardcoded_geometry(&mut self) {
+        self.use_hardcoded_geometry = false;
+        println!("🔧 Hardcoded geometry disabled - using world config system");
+    }
+    
     /// Populate the ECS world with wall, floor, and ceiling entities using StaticRenderer
     async fn populate_static_geometry(&mut self) {
+        if !self.use_hardcoded_geometry {
+            println!("🔧 Skipping hardcoded geometry - using world config system");
+            return;
+        }
+        
         let mut wall_count = 0;
         let mut floor_count = 0;
         let mut ceiling_count = 0;
@@ -124,8 +137,9 @@ impl EcsGameState {
         println!("ECS: Populated world with {} walls, {} floors, {} ceilings ({} total entities)", 
                  wall_count, floor_count, ceiling_count, wall_count + floor_count + ceiling_count + 1); // +1 for player
         
-        // Create default single omni light in the center
-        self.create_blue_omni_light();
+        // Note: Default light creation is now handled by world config system
+        // Only create default light if no config system is being used
+        // This will be overridden by hot-reload system if active
     }
     
     /// Check collision with ECS entities that have colliders at the given position

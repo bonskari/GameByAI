@@ -3,6 +3,8 @@ use std::time::Instant;
 use super::{map::Map, player::Player, input::{InputHandler, PlayerInput}};
 use super::rendering::DeferredRenderer;
 use super::ecs_state::EcsGameState;
+use super::level_data::LevelDataHotReload;
+use super::config::GameConfig;
 
 /// Overall game state for testing and gameplay
 pub struct GameState {
@@ -16,11 +18,24 @@ pub struct GameState {
     pub ecs_state: EcsGameState,
     // Centralized input handling
     pub input_handler: InputHandler,
+    // Hot-reload system for world configuration
+    pub level_data_hot_reload: Option<LevelDataHotReload>,
+    // Track light entities by config index for smart updates
+    pub world_config_light_entities: Vec<Option<crate::ecs::Entity>>,
+    // Track object entities by config index for smart updates
+    pub world_config_object_entities: Vec<Option<crate::ecs::Entity>>,
+    // Game configuration from config.ini
+    pub config: GameConfig,
 }
 
 impl GameState {
     /// Create a new game state
     pub fn new() -> Self {
+        Self::with_config(GameConfig::default())
+    }
+
+    /// Create a new game state with specific configuration
+    pub fn with_config(config: GameConfig) -> Self {
         GameState {
             map: Map::new(),
             frame_count: 0,
@@ -32,6 +47,39 @@ impl GameState {
             ecs_state: EcsGameState::new(),
             // Centralized input handling
             input_handler: InputHandler::new(),
+            // Hot-reload system (initialized later)
+            level_data_hot_reload: None,
+            // Track light entities for smart updates
+            world_config_light_entities: Vec::new(),
+            // Track object entities for smart updates
+            world_config_object_entities: Vec::new(),
+            // Store configuration
+            config,
+        }
+    }
+    
+    /// Initialize hot-reload system for world configuration
+    pub fn init_hot_reload(&mut self, config_file: &str) -> Result<(), Box<dyn std::error::Error>> {
+        match LevelDataHotReload::new(config_file) {
+            Ok(mut hot_reload) => {
+                // Disable hardcoded geometry since we're using config system
+                self.ecs_state.disable_hardcoded_geometry();
+                
+                // Apply the initial configuration
+                if let Some(initial_config) = hot_reload.get_config() {
+                    self.apply_world_config(&initial_config);
+                    hot_reload.set_last_applied_config(initial_config);
+                    println!("✅ Applied initial world configuration");
+                }
+                
+                self.level_data_hot_reload = Some(hot_reload);
+                println!("🔥 World config hot-reload initialized for: {}", config_file);
+                Ok(())
+            }
+            Err(e) => {
+                eprintln!("❌ Failed to initialize hot-reload system: {}", e);
+                Err(e)
+            }
         }
     }
     
@@ -51,12 +99,549 @@ impl GameState {
         // Update ECS state first
         self.ecs_state.update(delta_time);
         
+        // Check for world configuration changes
+        self.update_world_config();
+        
         // Legacy player sync is no longer needed - pure ECS now
         
         // Toggle between 2D and 3D view with TAB key
         if is_key_pressed(KeyCode::Tab) {
             self.view_mode_3d = !self.view_mode_3d;
         }
+    }
+    
+    /// Update world configuration hot-reload system
+    fn update_world_config(&mut self) {
+        let (config_to_apply, diff_to_apply, error_message) = if let Some(hot_reload) = &mut self.level_data_hot_reload {
+            // Check for file changes
+            hot_reload.update();
+            
+            let (config, diff) = if hot_reload.has_changed() {
+                println!("🔄 World configuration changed, reloading...");
+                
+                if let Some(config) = hot_reload.get_config() {
+                    // Get the diff to see what actually changed
+                    let diff = hot_reload.get_config_diff();
+                    
+                    // Clone the config to avoid borrowing issues
+                    let config_clone = config.clone();
+                    hot_reload.set_last_applied_config(config_clone.clone());
+                    (Some(config_clone), diff)
+                } else {
+                    println!("❌ Failed to get updated configuration");
+                    (None, None)
+                }
+            } else {
+                (None, None)
+            };
+            
+            // Get any error message while we still have mutable access
+            let error = hot_reload.get_last_error();
+            (config, diff, error)
+        } else {
+            (None, None, None)
+        };
+        
+        // Apply the configuration selectively if we have changes
+        if let (Some(config), Some(diff)) = (config_to_apply, diff_to_apply) {
+            self.apply_world_config_selective(&config, &diff);
+        }
+        
+        // Display any errors
+        if let Some(error) = error_message {
+            println!("❌ World config error: {}", error);
+        }
+    }
+    
+    /// Apply world configuration selectively based on what changed
+    fn apply_world_config_selective(&mut self, config: &super::level_data::LevelData, diff: &super::level_data::LevelDataDiff) {
+        if !diff.has_changes() {
+            return;
+        }
+        
+        println!("🌍 Applying selective world configuration changes: {}", diff.get_summary());
+        
+        // Only update player if player config changed
+        if diff.player_changed {
+            if let Some(player_config) = &config.player {
+                if player_config.enabled {
+                    self.apply_player_config(player_config);
+                }
+            }
+        }
+        
+        // Handle light changes
+        self.apply_light_changes(config, diff);
+        
+        // Handle object changes  
+        self.apply_object_changes(config, diff);
+        
+        // Apply settings changes
+        if diff.settings_changed {
+            self.apply_settings_config(config);
+        }
+        
+        println!("✅ Selective world configuration applied successfully!");
+    }
+
+    /// Apply world configuration to the ECS world (full reload)
+    fn apply_world_config(&mut self, config: &super::level_data::LevelData) {
+        println!("🌍 Applying world configuration:");
+        if config.player.is_some() {
+            println!("  - Player configuration");
+        }
+        println!("  - {} lights", config.lights.len());
+        println!("  - {} objects", config.objects.len());
+        
+        // Remove all existing config-created entities (lights and objects)
+        self.remove_all_config_entities();
+        
+        // Ensure tracking vectors have correct size
+        self.world_config_light_entities.resize(config.lights.len(), None);
+        self.world_config_object_entities.resize(config.objects.len(), None);
+        
+        // Apply player configuration
+        if let Some(player_config) = &config.player {
+            if player_config.enabled {
+                self.apply_player_config(player_config);
+            }
+        }
+        
+        // Add lights from configuration
+        for (i, light_config) in config.lights.iter().enumerate() {
+            if !light_config.enabled {
+                continue;
+            }
+            
+            let position = Vec3::new(
+                light_config.position[0],
+                light_config.position[1],
+                light_config.position[2]
+            );
+            
+            let color = Color::new(
+                light_config.color[0],
+                light_config.color[1],
+                light_config.color[2],
+                light_config.color[3]
+            );
+            
+            // Create light entity with visible sphere
+            let light_entity = self.ecs_state.world.spawn()
+                .with(crate::ecs::Transform::new(position))
+                .with(crate::ecs::LightSource::new(
+                    color,
+                    light_config.intensity,
+                    light_config.radius,
+                    match light_config.light_type.as_str() {
+                        "warning" => crate::ecs::LightSourceType::Warning { pulse_speed: 2.0 },
+                        "energy" => crate::ecs::LightSourceType::Energy { flow_speed: 1.5 },
+                        "control" => crate::ecs::LightSourceType::Control { flicker_speed: 0.1 },
+                        _ => crate::ecs::LightSourceType::Ambient,
+                    }
+                ))
+                .with(crate::ecs::Renderer::sphere(0.15)
+                    .with_color(Color::new(
+                        (color.r + 0.3).min(1.0),
+                        (color.g + 0.3).min(1.0),
+                        (color.b + 0.3).min(1.0),
+                        1.0
+                    ))
+                    .with_enabled(true))
+                .build();
+            
+            // Track the created light entity
+            self.world_config_light_entities[i] = Some(light_entity);
+            
+            let default_name = format!("Light_{}", i);
+            let light_name = light_config.name.as_deref().unwrap_or(&default_name);
+            println!("  ✅ Created {} light '{}' at {:?}", light_config.light_type, light_name, position);
+        }
+        
+        // Add objects from configuration
+        for (i, object_config) in config.objects.iter().enumerate() {
+            if !object_config.enabled {
+                continue;
+            }
+            
+            let position = Vec3::new(
+                object_config.position[0],
+                object_config.position[1],
+                object_config.position[2]
+            );
+            
+            let scale = Vec3::new(
+                object_config.scale[0],
+                object_config.scale[1],
+                object_config.scale[2]
+            );
+            
+            let _rotation = Vec3::new(
+                object_config.rotation[0],
+                object_config.rotation[1],
+                object_config.rotation[2]
+            );
+            
+            let color = object_config.color.map(|c| Color::new(c[0], c[1], c[2], c[3]));
+            
+            // Create the object entity with appropriate components
+            let mut entity_builder = self.ecs_state.world.spawn()
+                .with(crate::ecs::Transform::new(position));
+            
+            // Add rendering component based on mesh type
+            let renderer = match object_config.mesh.as_str() {
+                "cube" => crate::ecs::Renderer::cube(scale),
+                "sphere" => {
+                    let radius = scale.x.max(scale.y).max(scale.z) * 0.5;
+                    crate::ecs::Renderer::sphere(radius)
+                },
+                "cylinder" => {
+                    let radius = scale.x.max(scale.z) * 0.5;
+                    let height = scale.y;
+                    crate::ecs::Renderer::cylinder(radius, height)
+                },
+                "plane" => crate::ecs::Renderer::plane(scale.x, scale.z),
+                // Custom mesh file
+                mesh_path => {
+                    // For now, fallback to cube for custom meshes
+                    // TODO: Implement custom mesh loading
+                    println!("⚠️ Custom mesh loading not yet implemented: {}", mesh_path);
+                    crate::ecs::Renderer::cube(scale)
+                }
+            };
+            
+            // Apply texture and color
+            let mut final_renderer = renderer;
+            if let Some(texture_name) = &object_config.texture {
+                final_renderer = final_renderer.with_texture_name(texture_name.clone());
+            }
+            if let Some(color) = color {
+                final_renderer = final_renderer.with_color(color);
+            }
+            
+            entity_builder = entity_builder.with(final_renderer.with_enabled(true));
+            
+            // Add collision component based on collision type
+            match object_config.collision_type.as_str() {
+                "solid" => {
+                    entity_builder = entity_builder.with(crate::ecs::Collider::static_solid(
+                        crate::ecs::ColliderShape::Box { size: scale }
+                    ));
+                },
+                "trigger" => {
+                    entity_builder = entity_builder.with(crate::ecs::Collider::static_trigger(
+                        crate::ecs::ColliderShape::Box { size: scale }
+                    ));
+                },
+                "none" => {
+                    // No collision component
+                },
+                _ => {
+                    println!("⚠️ Unknown collision type: {}", object_config.collision_type);
+                }
+            }
+            
+            let object_entity = entity_builder.build();
+            
+            // Track the created object entity
+            self.world_config_object_entities[i] = Some(object_entity);
+            
+            let default_name = format!("Object_{}", i);
+            let object_name = object_config.name.as_deref().unwrap_or(&default_name);
+            println!("  ✅ Created {} object '{}' at {:?} (collision: {})", 
+                    object_config.mesh, object_name, position, object_config.collision_type);
+        }
+        
+        // Apply global settings
+        if let Some(settings) = &config.settings {
+            if let Some(ambient) = settings.ambient_light {
+                println!("  🌅 Ambient light: {:?}", ambient);
+            }
+            if let Some(fog_color) = settings.fog_color {
+                println!("  🌫️ Fog color: {:?}", fog_color);
+            }
+            if let Some(fog_density) = settings.fog_density {
+                println!("  🌫️ Fog density: {:.2}", fog_density);
+            }
+        }
+        
+        println!("✅ World configuration applied successfully!");
+    }
+    
+    /// Remove all config-created entities (for naive reloading)
+    fn remove_all_config_entities(&mut self) {
+        // Remove all tracked light entities
+        for light_entity in &self.world_config_light_entities {
+            if let Some(entity) = light_entity {
+                self.ecs_state.world.despawn(*entity);
+            }
+        }
+        self.world_config_light_entities.clear();
+        
+        // Remove all tracked object entities  
+        for object_entity in &self.world_config_object_entities {
+            if let Some(entity) = object_entity {
+                self.ecs_state.world.despawn(*entity);
+            }
+        }
+        self.world_config_object_entities.clear();
+        
+        println!("🧹 Removed all config-created entities");
+    }
+    
+    /// Apply player configuration to the existing player entity
+    fn apply_player_config(&mut self, player_config: &super::level_data::PlayerConfig) {
+        if let Some(player_entity) = self.ecs_state.player_entity {
+            // Update player transform (position and rotation)
+            if let Some(transform) = self.ecs_state.world.get_mut::<crate::ecs::Transform>(player_entity) {
+                transform.position = Vec3::new(
+                    player_config.spawn_position[0],
+                    player_config.spawn_position[1],
+                    player_config.spawn_position[2]
+                );
+                transform.rotation.y = player_config.spawn_rotation[0]; // Yaw
+                transform.rotation.x = player_config.spawn_rotation[1]; // Pitch
+            }
+            
+            // Update player collider if configuration changed
+            if let Some(collider) = self.ecs_state.world.get_mut::<crate::ecs::Collider>(player_entity) {
+                *collider = crate::ecs::Collider::dynamic_solid(crate::ecs::ColliderShape::Capsule {
+                    height: player_config.height,
+                    radius: player_config.radius,
+                });
+            }
+            
+            let player_name = player_config.name.as_deref().unwrap_or("Player");
+            println!("  ✅ Updated player '{}' at {:?} (height: {:.1}, radius: {:.2})", 
+                    player_name, 
+                    [player_config.spawn_position[0], player_config.spawn_position[1], player_config.spawn_position[2]],
+                    player_config.height,
+                    player_config.radius);
+        } else {
+            println!("  ⚠️ No player entity found to configure");
+        }
+    }
+
+    /// Apply light changes selectively
+    fn apply_light_changes(&mut self, config: &super::level_data::LevelData, diff: &super::level_data::LevelDataDiff) {
+        // Ensure tracking vector has correct size
+        self.world_config_light_entities.resize(config.lights.len(), None);
+        
+        // Remove lights that were removed
+        for &index in &diff.lights_removed {
+            if let Some(entity) = self.world_config_light_entities.get_mut(index).and_then(|e| e.take()) {
+                self.ecs_state.world.despawn(entity);
+                println!("  🗑️ Removed light at index {}", index);
+            }
+        }
+        
+        // Add new lights
+        for &(index, ref light_config) in &diff.lights_added {
+            if light_config.enabled {
+                let entity = self.create_light_entity(light_config);
+                if index < self.world_config_light_entities.len() {
+                    self.world_config_light_entities[index] = Some(entity);
+                }
+                let default_name = format!("Light_{}", index);
+                let light_name = light_config.name.as_deref().unwrap_or(&default_name);
+                println!("  ➕ Added {} light '{}' at {:?}", light_config.light_type, light_name, light_config.position);
+            }
+        }
+        
+        // Modify existing lights
+        for &(index, ref light_config) in &diff.lights_modified {
+            // Remove old light
+            if let Some(entity) = self.world_config_light_entities.get_mut(index).and_then(|e| e.take()) {
+                self.ecs_state.world.despawn(entity);
+            }
+            
+            // Create new light with updated config
+            if light_config.enabled {
+                let entity = self.create_light_entity(light_config);
+                if index < self.world_config_light_entities.len() {
+                    self.world_config_light_entities[index] = Some(entity);
+                }
+                let default_name = format!("Light_{}", index);
+                let light_name = light_config.name.as_deref().unwrap_or(&default_name);
+                println!("  🔄 Updated {} light '{}' at {:?}", light_config.light_type, light_name, light_config.position);
+            }
+        }
+    }
+
+    /// Apply object changes selectively
+    fn apply_object_changes(&mut self, config: &super::level_data::LevelData, diff: &super::level_data::LevelDataDiff) {
+        // Ensure tracking vector has correct size
+        self.world_config_object_entities.resize(config.objects.len(), None);
+        
+        // Remove objects that were removed
+        for &index in &diff.objects_removed {
+            if let Some(entity) = self.world_config_object_entities.get_mut(index).and_then(|e| e.take()) {
+                self.ecs_state.world.despawn(entity);
+                println!("  🗑️ Removed object at index {}", index);
+            }
+        }
+        
+        // Add new objects
+        for &(index, ref object_config) in &diff.objects_added {
+            if object_config.enabled {
+                let entity = self.create_object_entity(object_config);
+                if index < self.world_config_object_entities.len() {
+                    self.world_config_object_entities[index] = Some(entity);
+                }
+                let default_name = format!("Object_{}", index);
+                let object_name = object_config.name.as_deref().unwrap_or(&default_name);
+                println!("  ➕ Added {} object '{}' at {:?}", object_config.mesh, object_name, object_config.position);
+            }
+        }
+        
+        // Modify existing objects
+        for &(index, ref object_config) in &diff.objects_modified {
+            // Remove old object
+            if let Some(entity) = self.world_config_object_entities.get_mut(index).and_then(|e| e.take()) {
+                self.ecs_state.world.despawn(entity);
+            }
+            
+            // Create new object with updated config
+            if object_config.enabled {
+                let entity = self.create_object_entity(object_config);
+                if index < self.world_config_object_entities.len() {
+                    self.world_config_object_entities[index] = Some(entity);
+                }
+                let default_name = format!("Object_{}", index);
+                let object_name = object_config.name.as_deref().unwrap_or(&default_name);
+                println!("  🔄 Updated {} object '{}' at {:?}", object_config.mesh, object_name, object_config.position);
+            }
+        }
+    }
+
+    /// Apply global settings configuration
+    fn apply_settings_config(&mut self, config: &super::level_data::LevelData) {
+        if let Some(settings) = &config.settings {
+            if let Some(ambient) = settings.ambient_light {
+                println!("  🌅 Ambient light: {:?}", ambient);
+            }
+            if let Some(fog_color) = settings.fog_color {
+                println!("  🌫️ Fog color: {:?}", fog_color);
+            }
+            if let Some(fog_density) = settings.fog_density {
+                println!("  🌫️ Fog density: {}", fog_density);
+            }
+        }
+    }
+
+    /// Create a light entity from configuration
+    fn create_light_entity(&mut self, light_config: &super::level_data::LightConfig) -> crate::ecs::Entity {
+        let position = Vec3::new(
+            light_config.position[0],
+            light_config.position[1],
+            light_config.position[2]
+        );
+        
+        let color = Color::new(
+            light_config.color[0],
+            light_config.color[1],
+            light_config.color[2],
+            light_config.color[3]
+        );
+        
+        // Create light entity with visible sphere
+        self.ecs_state.world.spawn()
+            .with(crate::ecs::Transform::new(position))
+            .with(crate::ecs::LightSource::new(
+                color,
+                light_config.intensity,
+                light_config.radius,
+                match light_config.light_type.as_str() {
+                    "warning" => crate::ecs::LightSourceType::Warning { pulse_speed: 2.0 },
+                    "energy" => crate::ecs::LightSourceType::Energy { flow_speed: 1.5 },
+                    "control" => crate::ecs::LightSourceType::Control { flicker_speed: 0.1 },
+                    _ => crate::ecs::LightSourceType::Ambient,
+                }
+            ))
+            .with(crate::ecs::Renderer::sphere(0.15)
+                .with_color(Color::new(
+                    (color.r + 0.3).min(1.0),
+                    (color.g + 0.3).min(1.0),
+                    (color.b + 0.3).min(1.0),
+                    1.0
+                ))
+                .with_enabled(true))
+            .build()
+    }
+
+    /// Create an object entity from configuration
+    fn create_object_entity(&mut self, object_config: &super::level_data::ObjectConfig) -> crate::ecs::Entity {
+        let position = Vec3::new(
+            object_config.position[0],
+            object_config.position[1],
+            object_config.position[2]
+        );
+        
+        let scale = Vec3::new(
+            object_config.scale[0],
+            object_config.scale[1],
+            object_config.scale[2]
+        );
+        
+        let color = object_config.color.map(|c| Color::new(c[0], c[1], c[2], c[3]));
+        
+        // Create the object entity with appropriate components
+        let mut entity_builder = self.ecs_state.world.spawn()
+            .with(crate::ecs::Transform::new(position));
+        
+        // Add rendering component based on mesh type
+        let renderer = match object_config.mesh.as_str() {
+            "cube" => crate::ecs::Renderer::cube(scale),
+            "sphere" => {
+                let radius = scale.x.max(scale.y).max(scale.z) * 0.5;
+                crate::ecs::Renderer::sphere(radius)
+            },
+            "cylinder" => {
+                let radius = scale.x.max(scale.z) * 0.5;
+                let height = scale.y;
+                crate::ecs::Renderer::cylinder(radius, height)
+            },
+            "plane" => crate::ecs::Renderer::plane(scale.x, scale.z),
+            // Custom mesh file
+            mesh_path => {
+                // For now, fallback to cube for custom meshes
+                println!("⚠️ Custom mesh loading not yet implemented: {}", mesh_path);
+                crate::ecs::Renderer::cube(scale)
+            }
+        };
+        
+        // Apply texture and color
+        let mut final_renderer = renderer;
+        if let Some(texture_name) = &object_config.texture {
+            final_renderer = final_renderer.with_texture_name(texture_name.clone());
+        }
+        if let Some(color) = color {
+            final_renderer = final_renderer.with_color(color);
+        }
+        
+        entity_builder = entity_builder.with(final_renderer.with_enabled(true));
+        
+        // Add collision component based on collision type
+        match object_config.collision_type.as_str() {
+            "solid" => {
+                entity_builder = entity_builder.with(crate::ecs::Collider::static_solid(
+                    crate::ecs::ColliderShape::Box { size: scale }
+                ));
+            },
+            "trigger" => {
+                entity_builder = entity_builder.with(crate::ecs::Collider::static_trigger(
+                    crate::ecs::ColliderShape::Box { size: scale }
+                ));
+            },
+            "none" => {
+                // No collision component
+            },
+            _ => {
+                println!("⚠️ Unknown collision type: {}", object_config.collision_type);
+            }
+        }
+        
+        entity_builder.build()
     }
     
     /// Draw the game state
@@ -186,7 +771,13 @@ impl GameState {
         
         // Draw 2D UI
         draw_text("GAMEBYAI - 2D Enhanced Map View (ECS)", 20.0, 20.0, 20.0, GREEN);
-        draw_text(&format!("Frame: {} | FPS: {:.0} | System: ECS", self.frame_count, get_fps() as i32), 20.0, screen_height() - 60.0, 16.0, WHITE);
+        // Show FPS if enabled in config
+        let fps_text = if self.config.should_show_fps() {
+            format!("Frame: {} | FPS: {:.0} | System: ECS", self.frame_count, get_fps() as i32)
+        } else {
+            format!("Frame: {} | System: ECS", self.frame_count)
+        };
+        draw_text(&fps_text, 20.0, screen_height() - 60.0, 16.0, WHITE);
         draw_text("WASD: Move/Strafe | Mouse: Look | SPACE: Jump | M: Toggle Mouse | TAB: 3D View | ESC: Exit", 20.0, screen_height() - 20.0, 16.0, GRAY);
     }
     
@@ -292,7 +883,13 @@ impl GameState {
             
             draw_text("🔆 LIGHTING TEST", center_x, test_y + 20.0, 20.0, WHITE);
             draw_text(&format!("Phase: {}", test_name), center_x, test_y + 45.0, 16.0, WHITE);
-            draw_text(&format!("Lights: {} | FPS: {:.0}", light_count, get_fps()), center_x, test_y + 65.0, 14.0, YELLOW);
+            // Show FPS in lighting test if enabled in config
+            let lights_text = if self.config.should_show_fps() {
+                format!("Lights: {} | FPS: {:.0}", light_count, get_fps())
+            } else {
+                format!("Lights: {} | Performance Monitoring", light_count)
+            };
+            draw_text(&lights_text, center_x, test_y + 65.0, 14.0, YELLOW);
             draw_text(&format!("Time: {:.1}s / {:.1}s", elapsed, duration), center_x, test_y + 85.0, 14.0, GREEN);
             
             // Progress bar
@@ -325,11 +922,15 @@ impl GameState {
         // Performance stats title
         draw_text("📊 PERFORMANCE STATS", overlay_x, overlay_y + 15.0, 14.0, YELLOW);
         
-        // Real-time FPS
-        let fps = macroquad::time::get_fps();
-        let fps_color = if fps >= 120 { GREEN } else if fps >= 60 { YELLOW } else { RED };
-        let fps_status = if fps >= 120 { "🚀 BLAZING" } else if fps >= 60 { "✅ GOOD" } else { "⚠️ LOW" };
-        draw_text(&format!("FPS: {} {}", fps, fps_status), overlay_x, overlay_y + 35.0, 12.0, fps_color);
+        // Real-time FPS (only if enabled in config)
+        if self.config.should_show_fps() {
+            let fps = macroquad::time::get_fps();
+            let fps_color = if fps >= 120 { GREEN } else if fps >= 60 { YELLOW } else { RED };
+            let fps_status = if fps >= 120 { "🚀 BLAZING" } else if fps >= 60 { "✅ GOOD" } else { "⚠️ LOW" };
+            draw_text(&format!("FPS: {} {}", fps, fps_status), overlay_x, overlay_y + 35.0, 12.0, fps_color);
+        } else {
+            draw_text("FPS: Hidden (config.ini)", overlay_x, overlay_y + 35.0, 12.0, GRAY);
+        }
         
         // Pathfinding status
         draw_text("🗺️ A* Pathfinding: 4-directional", overlay_x, overlay_y + 55.0, 12.0, Color::new(0.0, 1.0, 1.0, 1.0));

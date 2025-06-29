@@ -1,0 +1,89 @@
+{
+  "player": {
+    "name": "MainPlayer",
+    "spawn_position": [5.0, 0.6, 5.0],
+    "spawn_rotation": [0.0, 0.0],
+    "move_speed": 8.0,
+    "turn_speed": 3.0,
+    "mouse_sensitivity": 0.001,
+    "height": 1.8,
+    "radius": 0.25,
+    "enabled": true
+  },
+  "lights": [
+    {
+      "name": "MainLight_Center",
+      "type": "omni",
+      "position": [5.0, 1.5, 5.0],
+      "color": [0.2, 1.0, 0.2, 1.0],
+      "intensity": 3.0,
+      "radius": 8.0,
+      "enabled": true
+    },
+    {
+      "name": "EnergyLight_Southeast",
+      "type": "energy",
+      "position": [2.0, 1.2, 8.0],
+      "color": [0.2, 0.8, 0.9, 1.0],
+      "intensity": 1.5,
+      "radius": 6.0,
+      "enabled": true
+    },
+    {
+      "name": "WarningLight_Northwest",
+      "type": "warning",
+      "position": [8.0, 1.2, 2.0],
+      "color": [1.0, 0.6, 0.2, 1.0],
+      "intensity": 1.8,
+      "radius": 5.0,
+      "enabled": true
+    }
+  ],
+  "objects": [
+    {
+      "name": "Wall_TechPanel_Northwest",
+      "mesh": "cube",
+      "texture": "tech_panel.png",
+      "collision_type": "solid",
+      "position": [3.0, 1.0, 3.0],
+      "scale": [1.0, 2.0, 1.0],
+      "rotation": [0.0, 0.0, 0.0],
+      "enabled": true
+    },
+    {
+      "name": "Wall_HullPlating_Southeast",
+      "mesh": "cube", 
+      "texture": "hull_plating.png",
+      "collision_type": "solid",
+      "position": [7.0, 1.0, 7.0],
+      "scale": [1.0, 2.0, 1.0],
+      "rotation": [0.0, 0.0, 0.0],
+      "enabled": true
+    },
+    {
+      "name": "Decoration_Sphere_Blue",
+      "mesh": "sphere",
+      "collision_type": "none",
+      "position": [4.0, 2.5, 4.0],
+      "scale": [0.8, 0.8, 0.8],
+      "rotation": [0.0, 0.0, 0.0],
+      "color": [0.2, 0.4, 1.0, 1.0],
+      "enabled": true
+    },
+    {
+      "name": "Floor_Main_Center",
+      "mesh": "plane",
+      "texture": "floor.png",
+      "collision_type": "none",
+      "position": [5.0, 0.0, 5.0],
+      "scale": [4.0, 1.0, 4.0],
+      "rotation": [0.0, 0.0, 0.0],
+      "enabled": true
+    }
+  ],
+  "settings": {
+    "ambient_light": [0.1, 0.1, 0.2, 1.0],
+    "fog_color": [0.2, 0.2, 0.3, 1.0],
+    "fog_density": 0.02
+  }
+} 
