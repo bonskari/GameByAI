@@ -1,11 +1,10 @@
 //! AI-powered texture generation using Stable Diffusion (API and Local)
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::path::Path;
 use std::collections::HashMap;
 use crate::game::map::WallType;
 
-use image;
 
 /// Configuration for AI texture generation
 #[derive(Debug, Clone)]
@@ -228,7 +227,7 @@ impl AITextureGenerator {
 
     /// Try to generate using a Python subprocess
     async fn try_python_subprocess(&self, prompt: &str) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
-        use std::process::Command;
+        
         use std::fs;
 
         // Try the ultra-fast persistent server first

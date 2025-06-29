@@ -12,7 +12,5 @@ pub mod performance_test;
 // Lighting tests are now integrated into ECS state
 
 // Re-export main functions for convenience
-pub use runner::{TestResult, TestRunner};
 pub use tests::run_tests;
-pub use performance_test::*;
 // Lighting test functionality moved to ECS state 

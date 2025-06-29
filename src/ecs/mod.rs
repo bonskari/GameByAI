@@ -22,28 +22,18 @@ pub type ComponentTypeId = std::any::TypeId;
 
 // Re-export core ECS types
 pub use entity::{Entity, EntityManager};
-pub use component::{Component, ComponentStorage, ComponentManager, TypedComponentStorage};
-pub use world::{World, EntityBuilder};
-pub use query::Query;
-pub use resource::{Resource, ResourceManager};
-pub use pathfinding::{PathfindingAlgorithms, PathfindingResult};
+pub use component::{Component, ComponentStorage, ComponentManager};
+pub use world::World;
 
 // Re-export all components from the new module structure
 pub use components::*;
 
 // Re-export game-specific components
 pub use components::{
-    Transform, Velocity, StaticRenderer, MaterialType, Collider, ColliderShape, 
-    ColliderMaterial, Player, Wall, Floor, Ceiling, Prop, TestBot, TestWaypoint, Pathfinder,
+    Transform, Velocity, StaticRenderer, MaterialType, Collider, ColliderShape, Player, Wall, Floor, Ceiling, Prop, TestBot, Pathfinder,
     StaticMesh, StaticMeshType, LightSource, LightSourceType, LightReceiver, LightingTest,
     Renderable, RenderData, RenderType,
 };
 
 // Re-export commonly used types
-pub use component::*;
-pub use components::*;
-pub use entity::*;
-pub use pathfinding::*;
-pub use query::*;
-pub use resource::*;
-pub use world::*; 
+ 

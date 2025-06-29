@@ -3,7 +3,7 @@
 use macroquad::prelude::*;
 use crate::game::{Player};
 use crate::game::map::WallType;
-use crate::ecs::{World, Transform, StaticRenderer, Wall, Floor, Ceiling, LightReceiver, LightSource, Renderable, RenderData, RenderType, Renderer, RenderMode, StaticMesh};
+use crate::ecs::{World, Transform, StaticRenderer, LightSource, Renderable, RenderData, RenderType, Renderer, RenderMode, StaticMesh};
 use std::collections::HashMap;
 
 /// Modern 3D renderer with ECS-based rendering only
@@ -39,34 +39,34 @@ impl Modern3DRenderer {
         println!("Loading textures from disk...");
         
         // Try to load wall textures
-        if let Ok(mut texture) = load_texture("assets/textures/tech_panel.png").await {
+        if let Ok(texture) = load_texture("assets/textures/tech_panel.png").await {
             texture.set_filter(FilterMode::Nearest);
             self.wall_textures.insert(WallType::TechPanel, texture);
             println!("Loaded tech_panel.png");
         }
-        if let Ok(mut texture) = load_texture("assets/textures/hull_plating.png").await {
+        if let Ok(texture) = load_texture("assets/textures/hull_plating.png").await {
             texture.set_filter(FilterMode::Nearest);
             self.wall_textures.insert(WallType::HullPlating, texture);
             println!("Loaded hull_plating.png");
         }
-        if let Ok(mut texture) = load_texture("assets/textures/control_system.png").await {
+        if let Ok(texture) = load_texture("assets/textures/control_system.png").await {
             texture.set_filter(FilterMode::Nearest);
             self.wall_textures.insert(WallType::ControlSystem, texture);
             println!("Loaded control_system.png");
         }
-        if let Ok(mut texture) = load_texture("assets/textures/energy_conduit.png").await {
+        if let Ok(texture) = load_texture("assets/textures/energy_conduit.png").await {
             texture.set_filter(FilterMode::Nearest);
             self.wall_textures.insert(WallType::EnergyConduit, texture);
             println!("Loaded energy_conduit.png");
         }
         
         // Try to load floor and ceiling textures
-        if let Ok(mut texture) = load_texture("assets/textures/floor.png").await {
+        if let Ok(texture) = load_texture("assets/textures/floor.png").await {
             texture.set_filter(FilterMode::Nearest);
             self.floor_texture = Some(texture);
             println!("Loaded floor.png with nearest filtering (sharp)");
         }
-        if let Ok(mut texture) = load_texture("assets/textures/ceiling.png").await {
+        if let Ok(texture) = load_texture("assets/textures/ceiling.png").await {
             texture.set_filter(FilterMode::Nearest);
             self.ceiling_texture = Some(texture);
             println!("Loaded ceiling.png");

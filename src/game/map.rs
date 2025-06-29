@@ -6,6 +6,11 @@ pub struct Map {
     pub width: usize,
     pub height: usize,
     pub tiles: Vec<Vec<u8>>, // 0 = empty, 1+ = different wall types
+    // World coordinate transformation
+    pub world_min_x: f32,
+    pub world_min_z: f32,
+    pub world_max_x: f32,
+    pub world_max_z: f32,
 }
 
 /// Wall texture types for sci-fi space station
@@ -46,7 +51,31 @@ impl Map {
             width: 10,
             height: 10,
             tiles: map_data,
+            world_min_x: 0.0,
+            world_min_z: 0.0,
+            world_max_x: 10.0,
+            world_max_z: 10.0,
         }
+    }
+    
+    /// Convert world coordinates to grid coordinates
+    pub fn world_to_grid(&self, world_x: f32, world_z: f32) -> (i32, i32) {
+        let grid_x = ((world_x - self.world_min_x) / (self.world_max_x - self.world_min_x) * self.width as f32).floor() as i32;
+        let grid_z = ((world_z - self.world_min_z) / (self.world_max_z - self.world_min_z) * self.height as f32).floor() as i32;
+        (grid_x, grid_z)
+    }
+    
+    /// Convert grid coordinates to world coordinates (center of cell)
+    pub fn grid_to_world(&self, grid_x: i32, grid_z: i32) -> (f32, f32) {
+        let world_x = self.world_min_x + (grid_x as f32 + 0.5) * (self.world_max_x - self.world_min_x) / self.width as f32;
+        let world_z = self.world_min_z + (grid_z as f32 + 0.5) * (self.world_max_z - self.world_min_z) / self.height as f32;
+        (world_x, world_z)
+    }
+    
+    /// Check if a world position contains a wall
+    pub fn is_wall_world(&self, world_x: f32, world_z: f32) -> bool {
+        let (grid_x, grid_z) = self.world_to_grid(world_x, world_z);
+        self.is_wall(grid_x, grid_z)
     }
     
     /// Check if a position contains a wall

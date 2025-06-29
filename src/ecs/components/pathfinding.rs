@@ -100,20 +100,18 @@ pub struct TestBot {
 
 impl TestBot {
     pub fn new(test_duration_seconds: u64) -> Self {
+        // Updated waypoints for the simple rectangular room (10x10 area from 0,0 to 10,10)
+        // Player starts at (5,5), so we'll navigate around the room
         let waypoints = vec![
-            Vec2::new(2.5, 1.5), // First target - East corridor
-            Vec2::new(3.5, 1.5), // Continue east
-            Vec2::new(4.5, 1.5), // Far east
-            Vec2::new(5.5, 1.5), // Eastern corridor
-            Vec2::new(6.5, 1.5), // Near east wall
-            Vec2::new(7.5, 1.5), // East end
-            Vec2::new(8.5, 1.5), // Turn point
-            Vec2::new(8.5, 6.5), // Go south to safe row 6
-            Vec2::new(6.5, 6.5), // Move west in safe row 6
-            Vec2::new(3.5, 6.5), // Continue west in safe row 6
-            Vec2::new(1.5, 6.5), // West end in safe row 6
-            Vec2::new(1.5, 3.5), // Move north to middle
-            Vec2::new(1.5, 1.5), // Return to start
+            Vec2::new(2.0, 2.0), // Northwest area
+            Vec2::new(8.0, 2.0), // Northeast area  
+            Vec2::new(8.0, 8.0), // Southeast area
+            Vec2::new(2.0, 8.0), // Southwest area
+            Vec2::new(5.0, 5.0), // Back to center
+            Vec2::new(3.0, 5.0), // West center
+            Vec2::new(7.0, 5.0), // East center
+            Vec2::new(5.0, 3.0), // North center
+            Vec2::new(5.0, 7.0), // South center
         ];
 
         Self {

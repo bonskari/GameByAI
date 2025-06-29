@@ -449,7 +449,7 @@ impl LevelMeshBuilder {
         }
 
         // Load floor texture
-        let texture = if let Ok(mut tex) = load_texture("assets/textures/floor.png").await {
+        let texture = if let Ok(tex) = load_texture("assets/textures/floor.png").await {
             tex.set_filter(FilterMode::Nearest);
             Some(tex)
         } else {
@@ -534,7 +534,7 @@ impl LevelMeshBuilder {
         }
 
         // Load ceiling texture
-        let texture = if let Ok(mut tex) = load_texture("assets/textures/ceiling.png").await {
+        let texture = if let Ok(tex) = load_texture("assets/textures/ceiling.png").await {
             tex.set_filter(FilterMode::Nearest);
             Some(tex)
         } else {

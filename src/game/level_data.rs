@@ -289,6 +289,8 @@ pub struct LevelDataHotReload {
     pub last_error: Option<String>,
     last_reload_time: std::time::Instant,
     debounce_duration: std::time::Duration,
+    last_check_time: std::time::Instant,
+    check_interval: std::time::Duration,
 }
 
 impl LevelDataHotReload {
@@ -326,11 +328,21 @@ impl LevelDataHotReload {
             last_error: None,
             last_reload_time: Instant::now(),
             debounce_duration: Duration::from_millis(500), // 500ms debounce
+            last_check_time: Instant::now(),
+            check_interval: Duration::from_secs(5), // Check every 5 seconds
         })
     }
     
     /// Check for file changes and reload if necessary
     pub fn update(&mut self) {
+        // Only check for file changes every 5 seconds to reduce overhead
+        if self.last_check_time.elapsed() < self.check_interval {
+            return;
+        }
+        
+        // Update the last check time
+        self.last_check_time = Instant::now();
+        
         let mut should_reload = false;
         
         // Process all pending file events

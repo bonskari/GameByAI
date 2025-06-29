@@ -8,7 +8,10 @@
 pub mod materials;
 pub mod vertex_data;
 pub mod deferred_renderer;
+pub mod gltf_loader;
+pub mod renderer_3d;
+pub mod lowpoly_meshes;
 
 // Re-export main types
-pub use materials::MaterialManager;
-pub use deferred_renderer::DeferredRenderer; 
+pub use deferred_renderer::DeferredRenderer;
+pub use gltf_loader::GltfLoader; 

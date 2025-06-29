@@ -52,8 +52,8 @@ impl PathfindingAlgorithms {
 
     /// Find path using A* algorithm with ECS entity collision checking
     pub fn find_path_with_ecs(&self, start: Vec2, goal: Vec2, world: &World) -> PathfindingResult {
-        let start_grid = (start.x.floor() as i32, start.y.floor() as i32);
-        let goal_grid = (goal.x.floor() as i32, goal.y.floor() as i32);
+        let start_grid = self.map.world_to_grid(start.x, start.y);
+        let goal_grid = self.map.world_to_grid(goal.x, goal.y);
 
         // Check if start or goal are blocked by static map or enabled ECS entities
         if self.is_position_blocked(start_grid.0, start_grid.1, world) || 
@@ -157,16 +157,15 @@ impl PathfindingAlgorithms {
 
         // Then check ECS entities with colliders
         // Convert grid position to world position for collision check
-        let world_x = x as f32 + 0.5;
-        let world_z = y as f32 + 0.5;
+        let (world_x, world_z) = self.map.grid_to_world(x, y);
         
         Collider::check_grid_collision(world, world_x, world_z)
     }
 
     /// Find path using A* algorithm (legacy version, doesn't check ECS entities)
     pub fn find_path(&self, start: Vec2, goal: Vec2) -> PathfindingResult {
-        let start_grid = (start.x.floor() as i32, start.y.floor() as i32);
-        let goal_grid = (goal.x.floor() as i32, goal.y.floor() as i32);
+        let start_grid = self.map.world_to_grid(start.x, start.y);
+        let goal_grid = self.map.world_to_grid(goal.x, goal.y);
 
         // Check if start or goal are in walls
         if self.map.is_wall(start_grid.0, start_grid.1) || self.map.is_wall(goal_grid.0, goal_grid.1) {
@@ -307,7 +306,8 @@ impl PathfindingAlgorithms {
         // Trace back through the path
         while let Some(&parent) = came_from.get(&current) {
             // Convert grid position to world position (center of grid cell)
-            let world_pos = Vec2::new(current.0 as f32 + 0.5, current.1 as f32 + 0.5);
+            let (world_x, world_z) = self.map.grid_to_world(current.0, current.1);
+            let world_pos = Vec2::new(world_x, world_z);
             path.push(world_pos);
             current = parent;
         }

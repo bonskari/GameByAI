@@ -2,7 +2,6 @@
 // Actual AI texture generation in native Rust!
 
 use std::path::Path;
-use tokio::fs;
 use anyhow::Result;
 
 pub struct CandleSDXLGenerator {

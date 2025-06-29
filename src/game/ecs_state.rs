@@ -4,10 +4,8 @@ use macroquad::prelude::*;
 use crate::ecs::*;
 use crate::ecs::pathfinding::PathfindingAlgorithms;
 use crate::testing::performance_test::PerformanceTest;
-use super::map::{Map, WallType};
+use super::map::Map;
 use super::input::PlayerInput;
-use crate::game::level_generator::LevelMeshBuilder;
-use std::time::Instant;
 use std::collections::HashMap;
 
 /// ECS-based game state that manages all entities and components
@@ -20,7 +18,7 @@ pub struct EcsGameState {
     pub middle_pillar_entities: Vec<Entity>,  // Track middle pillars for toggling
     pub pillars_enabled: bool,                // Current state of middle pillars
     pub last_pillar_toggle_time: std::time::Instant, // Track when pillars were last toggled
-    pub use_hardcoded_geometry: bool,         // Whether to create hardcoded walls/floors/ceilings
+
 }
 
 impl EcsGameState {
@@ -47,100 +45,17 @@ impl EcsGameState {
             middle_pillar_entities: Vec::new(),
             pillars_enabled: true,
             last_pillar_toggle_time: std::time::Instant::now(),
-            use_hardcoded_geometry: true, // Default to true for backward compatibility
+
         }
     }
     
-    /// Async initialization that sets up the static geometry with textures
+    /// Async initialization that sets up the ECS systems
     pub async fn initialize(&mut self) {
-        // Populate the world with static geometry entities
-        self.populate_static_geometry().await;
+        // ECS systems are ready - no hardcoded geometry created
+        println!("🔧 ECS initialized - using JSON configuration system only");
     }
     
-    /// Disable hardcoded geometry creation (use when world config system is active)  
-    pub fn disable_hardcoded_geometry(&mut self) {
-        self.use_hardcoded_geometry = false;
-        println!("🔧 Hardcoded geometry disabled - using world config system");
-    }
-    
-    /// Populate the ECS world with wall, floor, and ceiling entities using StaticRenderer
-    async fn populate_static_geometry(&mut self) {
-        if !self.use_hardcoded_geometry {
-            println!("🔧 Skipping hardcoded geometry - using world config system");
-            return;
-        }
-        
-        let mut wall_count = 0;
-        let mut floor_count = 0;
-        let mut ceiling_count = 0;
-        
-        // Create separate wall meshes for each texture type
-        let mesh_builder = LevelMeshBuilder::new(self.map.clone());
-        
-        // Generate separate meshes for each wall type
-        for wall_type in [WallType::TechPanel, WallType::HullPlating, WallType::ControlSystem, WallType::EnergyConduit] {
-            let wall_mesh = mesh_builder.generate_wall_mesh_for_type(wall_type).await;
-            
-            // Only create entity if mesh has geometry
-            if !wall_mesh.vertices.is_empty() {
-                let _wall_mesh_entity = self.world.spawn()
-                    .with(Transform::new(Vec3::ZERO))  // World origin since mesh contains world coordinates
-                    .with(StaticMesh::walls(wall_mesh))
-                    .build();
-                wall_count += 1;
-            }
-        }
-        
-        // Generate and create the single floor mesh entity
-        let floor_mesh = mesh_builder.generate_floor_mesh_with_texture().await;
-        let _floor_mesh_entity = self.world.spawn()
-            .with(Transform::new(Vec3::ZERO))
-            .with(StaticMesh::floor(floor_mesh))
-            .build();
-        floor_count = 1; // One floor mesh entity
-        
-        // Generate and create the single ceiling mesh entity
-        let ceiling_mesh = mesh_builder.generate_ceiling_mesh_with_texture().await;
-        let _ceiling_mesh_entity = self.world.spawn()
-            .with(Transform::new(Vec3::ZERO))
-            .with(StaticMesh::ceiling(ceiling_mesh))
-            .build();
-        ceiling_count = 1; // One ceiling mesh entity
-        
-        // Create collision entities for walls (separate from rendering)
-        for y in 0..self.map.height {
-            for x in 0..self.map.width {
-                if self.map.is_wall(x as i32, y as i32) {
-                    let _wall_type = self.map.get_wall_type(x as i32, y as i32);
-                    
-                    // Check if this is a middle pillar (roughly center of map)
-                    let is_middle_pillar = (x == 4 || x == 5) && (y == 4 || y == 5);
-                    
-                    // Create collision entity for this wall position
-                    let collision_entity = self.world.spawn()
-                        .with(Transform::new(Vec3::new(x as f32 + 0.5, 1.0, y as f32 + 0.5)))
-                        .with(Collider::static_solid(ColliderShape::Box { size: Vec3::new(1.0, 2.0, 1.0) }))
-                        .with(StaticRenderer::wall("invisible".to_string()).with_enabled(false)) // Invisible renderer for collision query
-                        .with(Wall::new())
-                        .build();
-                    
-                    // Track middle pillar entities for toggling
-                    if is_middle_pillar {
-                        self.middle_pillar_entities.push(collision_entity);
-                    }
-                    
-                    wall_count += 1;
-                }
-            }
-        }
-        
-        println!("ECS: Populated world with {} walls, {} floors, {} ceilings ({} total entities)", 
-                 wall_count, floor_count, ceiling_count, wall_count + floor_count + ceiling_count + 1); // +1 for player
-        
-        // Note: Default light creation is now handled by world config system
-        // Only create default light if no config system is being used
-        // This will be overridden by hot-reload system if active
-    }
+
     
     /// Check collision with ECS entities that have colliders at the given position
     fn check_ecs_collision(&self, x: f32, z: f32) -> bool {
@@ -422,9 +337,20 @@ impl EcsGameState {
         println!("🔍 ECS Debug Info - Test Start:");
         self.print_debug_info();
         
+        // Get player spawn position from existing player entity or use default
+        let spawn_position = if let Some(player_entity) = self.player_entity {
+            if let Some(transform) = self.world.get::<Transform>(player_entity) {
+                transform.position
+            } else {
+                Vec3::new(5.0, 0.6, 5.0) // Default center position
+            }
+        } else {
+            Vec3::new(5.0, 0.6, 5.0) // Default center position
+        };
+        
         // Create test bot entity with all necessary components
         let entity = self.world.spawn()
-            .with(Transform::new(Vec3::new(1.5, 0.6, 1.5)))  // Start position
+            .with(Transform::new(spawn_position))  // Start at player spawn position
             .with(Player::new())
             .with(TestBot::new(test_duration_seconds))
             .with(Pathfinder::new(2.0, 5.0))  // movement_speed, rotation_speed
@@ -435,6 +361,8 @@ impl EcsGameState {
         self.player_entity = Some(entity);
         
         println!("🤖 Test bot attached: Entity {:?} with {} second duration", entity, test_duration_seconds);
+        println!("🤖 Test bot starting at position: ({:.1}, {:.1}, {:.1})", 
+                 spawn_position.x, spawn_position.y, spawn_position.z);
     }
     
     /// Check if any entity has test bot component

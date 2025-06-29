@@ -66,6 +66,28 @@ pub enum Commands {
         #[command(subcommand)]
         action: LightingAction,
     },
+    /// Export generated meshes to external file formats
+    #[command(name = "export-meshes")]
+    ExportMeshes {
+        /// Output directory for exported meshes
+        #[arg(short, long, default_value = "assets/meshes")]
+        output: String,
+        /// Export format (gltf only - modern game-ready format)
+        #[arg(short, long, default_value = "gltf")]
+        format: String,
+        /// Export all meshes (walls, floor, ceiling)
+        #[arg(long)]
+        all: bool,
+        /// Export only walls
+        #[arg(long)]
+        walls_only: bool,
+        /// Export only floor
+        #[arg(long)]
+        floor_only: bool,
+        /// Export only ceiling
+        #[arg(long)]
+        ceiling_only: bool,
+    },
 }
 
 /// Lighting control actions

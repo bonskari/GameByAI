@@ -3,7 +3,7 @@
 //! This module will contain the query system for type-safe,
 //! efficient iteration over entities with specific components.
 
-use crate::ecs::{World, Component};
+use crate::ecs::World;
 
 /// Query trait for accessing components
 pub trait Query<'w> {

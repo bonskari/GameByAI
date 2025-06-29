@@ -1,5 +1,4 @@
 use macroquad::prelude::*;
-use crate::game::map::{Map, WallType};
 use std::collections::HashMap;
 
 /// Enhanced texture generation and management system with advanced tiling
@@ -144,8 +143,8 @@ impl TextureGenerator {
         let base_b = 0.2;
         
         // Add glowing control elements
-        let control_x = ((fx * 6.0).sin() * 0.5 + 0.5);
-        let control_y = ((fy * 4.0).cos() * 0.5 + 0.5);
+        let control_x = (fx * 6.0).sin() * 0.5 + 0.5;
+        let control_y = (fy * 4.0).cos() * 0.5 + 0.5;
         let glow = (control_x * control_y) * 0.5;
         
         // Add status lights

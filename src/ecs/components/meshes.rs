@@ -35,6 +35,7 @@ pub struct StaticMesh {
 pub struct Renderer {
     pub render_mode: RenderMode,
     pub material: RenderMaterial,
+    pub custom_mesh_path: Option<String>,
     pub enabled: bool,
 }
 
@@ -70,6 +71,7 @@ impl Renderer {
         Self {
             render_mode: RenderMode::UseMeshData,
             material: RenderMaterial::default(),
+            custom_mesh_path: None,
             enabled: true,
         }
     }
@@ -79,6 +81,7 @@ impl Renderer {
         Self {
             render_mode: RenderMode::Cube { size },
             material: RenderMaterial::default(),
+            custom_mesh_path: None,
             enabled: true,
         }
     }
@@ -88,6 +91,7 @@ impl Renderer {
         Self {
             render_mode: RenderMode::Sphere { radius },
             material: RenderMaterial::default(),
+            custom_mesh_path: None,
             enabled: true,
         }
     }
@@ -97,6 +101,7 @@ impl Renderer {
         Self {
             render_mode: RenderMode::Cylinder { radius, height },
             material: RenderMaterial::default(),
+            custom_mesh_path: None,
             enabled: true,
         }
     }
@@ -106,6 +111,17 @@ impl Renderer {
         Self {
             render_mode: RenderMode::Plane { width, height },
             material: RenderMaterial::default(),
+            custom_mesh_path: None,
+            enabled: true,
+        }
+    }
+
+    /// Create a custom renderer
+    pub fn custom() -> Self {
+        Self {
+            render_mode: RenderMode::Custom,
+            material: RenderMaterial::default(),
+            custom_mesh_path: None,
             enabled: true,
         }
     }
@@ -137,6 +153,12 @@ impl Renderer {
     /// Set enabled state
     pub fn with_enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
+        self
+    }
+
+    /// Set custom mesh path for GLTF loading
+    pub fn with_custom_mesh_path(mut self, path: String) -> Self {
+        self.custom_mesh_path = Some(path);
         self
     }
 

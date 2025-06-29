@@ -58,13 +58,13 @@ async fn initialize_game() -> GameState {
 
     let mut game_state = GameState::with_config(config.clone());
     
-    // Initialize ECS with wall meshes and textures
+    // Initialize ECS (no hardcoded geometry)
     game_state.initialize().await;
     
-    // Initialize hot-reload system if enabled in config
+    // Initialize hot-reload system for JSON level configuration
     if config.is_hot_reload_enabled() {
         let config_file = config.get_default_level_path();
-        if let Err(e) = game_state.init_hot_reload(config_file) {
+        if let Err(e) = game_state.init_hot_reload(config_file).await {
             println!("⚠️ Hot-reload system not available: {}", e);
             println!("   The game will run normally without hot-reload functionality");
         }
@@ -86,7 +86,7 @@ async fn run_game_loop(mut game_state: GameState, test_duration: Option<u64>) {
         let dt = get_frame_time();
         
         game_state.update(dt);
-        game_state.draw();
+        game_state.draw().await;
         
         frame_counter += 1;
         
@@ -286,6 +286,73 @@ async fn run_texture_generation(
     }
 }
 
+/// Handle mesh export commands
+async fn handle_mesh_export(
+    output: &str,
+    format: &str,
+    all: bool,
+    walls_only: bool,
+    floor_only: bool,
+    ceiling_only: bool,
+) {
+    use game::mesh_export::{MeshExporter, ExportFormat};
+    use game::map::Map;
+
+    println!("🏗️ Mesh Export System");
+    
+    // Parse export format - only GLTF supported (modern game-ready format)
+    let export_format = match format.to_lowercase().as_str() {
+        "gltf" => ExportFormat::Gltf,
+        _ => {
+            eprintln!("❌ Invalid format: {}. Only GLTF format is supported (modern game-ready format)", format);
+            return;
+        }
+    };
+
+    // Create mesh exporter
+    let exporter = MeshExporter::new(output);
+    
+    // Create map for mesh generation
+    let map = Map::new();
+
+    println!("📁 Output directory: {}", output);
+    println!("🔧 Export format: {:?}", export_format);
+
+    // Determine what to export
+    if all || (!walls_only && !floor_only && !ceiling_only) {
+        // Export everything
+        println!("📦 Exporting all wall meshes...");
+        if let Err(e) = exporter.export_all_wall_meshes(&map, export_format).await {
+            eprintln!("❌ Failed to export meshes: {}", e);
+        }
+    } else {
+        // Export specific components
+        if walls_only {
+            println!("🧱 Exporting wall meshes only...");
+            for wall_type in [game::map::WallType::TechPanel, game::map::WallType::HullPlating, 
+                            game::map::WallType::ControlSystem, game::map::WallType::EnergyConduit] {
+                let mesh = exporter.generate_wall_mesh_for_type(&map, wall_type);
+                
+                if !mesh.vertices.is_empty() {
+                    let filename = format!("wall_{:?}", wall_type).to_lowercase();
+                    if let Err(e) = exporter.export_mesh(&mesh, &filename, export_format, Some(wall_type)).await {
+                        eprintln!("❌ Failed to export wall mesh {:?}: {}", wall_type, e);
+                    }
+                } else {
+                    println!("⚠️ Skipping empty mesh for wall type: {:?}", wall_type);
+                }
+            }
+        }
+
+        // Note: Floor and ceiling export removed as we're focusing on GLTF walls only
+        if floor_only || ceiling_only {
+            println!("⚠️ Floor and ceiling export not yet implemented for lightweight system");
+        }
+    }
+
+    println!("✅ Mesh export completed!");
+}
+
 /// Handle lighting commands
 async fn handle_lighting_command(action: cli::LightingAction) {
     println!("🔆 Lighting Command System");
@@ -352,6 +419,12 @@ fn main() {
         Some(Commands::Lighting { action }) => {
             macroquad::Window::from_config(window_conf(), async move {
                 handle_lighting_command(action).await;
+            });
+        },
+        Some(Commands::ExportMeshes { output, format, all, walls_only, floor_only, ceiling_only }) => {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                handle_mesh_export(&output, &format, all, walls_only, floor_only, ceiling_only).await;
             });
         },
         None => {

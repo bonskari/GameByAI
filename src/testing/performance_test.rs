@@ -1,7 +1,7 @@
 //! Performance testing for enabled/disabled entity systems
 
 use std::time::Instant;
-use crate::ecs::{World, Entity, Transform, StaticRenderer, Wall};
+use crate::ecs::{World, Transform, StaticRenderer, Wall};
 
 /// Simple entity with enabled field for comparison testing
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

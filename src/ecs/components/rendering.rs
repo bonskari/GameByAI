@@ -1,7 +1,7 @@
 //! Rendering components and systems
 
 use macroquad::prelude::*;
-use crate::ecs::{Component, World, Entity, Transform, component::{ComponentRegistration}};
+use crate::ecs::Component;
 
 /// Unified renderer for all static geometry (walls, floors, ceilings, props)
 pub struct StaticRenderer {
@@ -92,6 +92,16 @@ impl StaticRenderer {
     /// Set visibility
     pub fn set_visible(&mut self, visible: bool) {
         self.visible = visible;
+    }
+
+    /// Get the texture name from the material type
+    pub fn get_texture_name(&self) -> Option<String> {
+        match &self.material_type {
+            MaterialType::Wall { texture_name } => Some(texture_name.clone()),
+            MaterialType::Floor { texture_name } => Some(texture_name.clone()),
+            MaterialType::Ceiling { texture_name } => Some(texture_name.clone()),
+            MaterialType::Prop { texture_name } => Some(texture_name.clone()),
+        }
     }
 }
 

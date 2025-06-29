@@ -1,6 +1,6 @@
 use macroquad::prelude::*;
 use std::time::Instant;
-use super::{map::Map, player::Player, input::{InputHandler, PlayerInput}};
+use super::{map::Map, player::Player, input::InputHandler};
 use super::rendering::DeferredRenderer;
 use super::ecs_state::EcsGameState;
 use super::level_data::LevelDataHotReload;
@@ -26,6 +26,40 @@ pub struct GameState {
     pub world_config_object_entities: Vec<Option<crate::ecs::Entity>>,
     // Game configuration from config.ini
     pub config: GameConfig,
+    // Loading progress display
+    pub loading_progress: Option<LoadingProgress>,
+}
+
+/// Loading progress information
+#[derive(Debug, Clone)]
+pub struct LoadingProgress {
+    pub stage: String,
+    pub detail: String,
+    pub current: usize,
+    pub total: usize,
+    pub start_time: Instant,
+}
+
+impl LoadingProgress {
+    pub fn new(stage: &str) -> Self {
+        Self {
+            stage: stage.to_string(),
+            detail: String::new(),
+            current: 0,
+            total: 0,
+            start_time: Instant::now(),
+        }
+    }
+    
+    pub fn update(&mut self, detail: &str, current: usize, total: usize) {
+        self.detail = detail.to_string();
+        self.current = current;
+        self.total = total;
+    }
+    
+    pub fn elapsed(&self) -> f32 {
+        self.start_time.elapsed().as_secs_f32()
+    }
 }
 
 impl GameState {
@@ -55,19 +89,20 @@ impl GameState {
             world_config_object_entities: Vec::new(),
             // Store configuration
             config,
+            // Loading progress display
+            loading_progress: None,
         }
     }
     
     /// Initialize hot-reload system for world configuration
-    pub fn init_hot_reload(&mut self, config_file: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn init_hot_reload(&mut self, config_file: &str) -> Result<(), Box<dyn std::error::Error>> {
         match LevelDataHotReload::new(config_file) {
             Ok(mut hot_reload) => {
-                // Disable hardcoded geometry since we're using config system
-                self.ecs_state.disable_hardcoded_geometry();
+                println!("🔧 Using JSON map system - no procedural geometry");
                 
                 // Apply the initial configuration
                 if let Some(initial_config) = hot_reload.get_config() {
-                    self.apply_world_config(&initial_config);
+                    self.apply_world_config(&initial_config).await;
                     hot_reload.set_last_applied_config(initial_config);
                     println!("✅ Applied initial world configuration");
                 }
@@ -88,8 +123,8 @@ impl GameState {
         self.ecs_state.initialize().await;
         
         // Initialize deferred renderer
-        self.deferred_renderer.load_textures().await;
         self.deferred_renderer.initialize_shaders().await;
+        // Note: Texture preloading now happens in apply_world_config() after entities are created
     }
     
     /// Update the game state
@@ -181,17 +216,163 @@ impl GameState {
             self.apply_settings_config(config);
         }
         
+        // Regenerate pathfinding map if objects changed
+        if diff.objects_added.len() > 0 || diff.objects_modified.len() > 0 || diff.objects_removed.len() > 0 {
+            println!("🗺️ Objects changed - regenerating pathfinding map");
+            let pathfinding_map = self.generate_pathfinding_map_from_level(config);
+            self.map = pathfinding_map.clone();
+            self.ecs_state.update_pathfinding_map(pathfinding_map);
+        }
+        
+        // TODO: GLTF meshes need to be preloaded for hot-reload changes
+        // Currently only initial loading supports GLTF preloading due to async constraints
+        if diff.objects_added.len() > 0 || diff.objects_modified.len() > 0 {
+            println!("⚠️ Objects changed - GLTF meshes may need to be reloaded manually");
+        }
+        
         println!("✅ Selective world configuration applied successfully!");
     }
 
+    /// Generate a pathfinding map from the current level configuration
+    fn generate_pathfinding_map_from_level(&self, config: &super::level_data::LevelData) -> Map {
+        // Determine map bounds from objects
+        let mut min_x: f32 = 0.0;
+        let mut max_x: f32 = 10.0;
+        let mut min_z: f32 = 0.0;
+        let mut max_z: f32 = 10.0;
+        
+        // Find the actual bounds of the level
+        for obj in &config.objects {
+            if !obj.enabled {
+                continue;
+            }
+            
+            let pos_x = obj.position[0];
+            let pos_z = obj.position[2];
+            let scale_x = obj.scale[0];
+            let scale_z = obj.scale[2];
+            
+            // Calculate object bounds
+            let obj_min_x = pos_x - scale_x / 2.0;
+            let obj_max_x = pos_x + scale_x / 2.0;
+            let obj_min_z = pos_z - scale_z / 2.0;
+            let obj_max_z = pos_z + scale_z / 2.0;
+            
+            min_x = min_x.min(obj_min_x);
+            max_x = max_x.max(obj_max_x);
+            min_z = min_z.min(obj_min_z);
+            max_z = max_z.max(obj_max_z);
+        }
+        
+        // Add some padding
+        min_x -= 1.0;
+        max_x += 1.0;
+        min_z -= 1.0;
+        max_z += 1.0;
+        
+        // Create grid (1 unit per cell)
+        let width = (max_x - min_x).ceil() as usize;
+        let height = (max_z - min_z).ceil() as usize;
+        
+        // Initialize as all walkable
+        let mut tiles = vec![vec![0u8; width]; height];
+        
+        // Mark solid objects as walls
+        for obj in &config.objects {
+            if !obj.enabled || obj.collision_type != "solid" {
+                continue;
+            }
+            
+            // Skip floors and ceilings - they don't block horizontal movement
+            let obj_name = obj.name.as_ref().map(|s| s.to_lowercase()).unwrap_or_default();
+            if obj_name.contains("floor") || obj_name.contains("ceiling") {
+                continue;
+            }
+            
+            let pos_x = obj.position[0];
+            let pos_z = obj.position[2];
+            let scale_x = obj.scale[0];
+            let scale_z = obj.scale[2];
+            
+            // Calculate object bounds
+            let obj_min_x = pos_x - scale_x / 2.0;
+            let obj_max_x = pos_x + scale_x / 2.0;
+            let obj_min_z = pos_z - scale_z / 2.0;
+            let obj_max_z = pos_z + scale_z / 2.0;
+            
+            // Mark grid cells that overlap with this object as walls
+            for z in 0..height {
+                for x in 0..width {
+                    let cell_min_x = min_x + (x as f32 / width as f32) * (max_x - min_x);
+                    let cell_max_x = min_x + ((x + 1) as f32 / width as f32) * (max_x - min_x);
+                    let cell_min_z = min_z + (z as f32 / height as f32) * (max_z - min_z);
+                    let cell_max_z = min_z + ((z + 1) as f32 / height as f32) * (max_z - min_z);
+                    
+                    // Check if object overlaps with this grid cell
+                    if obj_max_x > cell_min_x && obj_min_x < cell_max_x &&
+                       obj_max_z > cell_min_z && obj_min_z < cell_max_z {
+                        tiles[z][x] = 1; // Mark as wall
+                    }
+                }
+            }
+        }
+        
+        println!("🗺️ Generated pathfinding map: {}x{} (bounds: {:.1},{:.1} to {:.1},{:.1})", 
+                 width, height, min_x, min_z, max_x, max_z);
+        
+        // Debug: Print the generated map
+        println!("🔍 DEBUG: Generated pathfinding map layout:");
+        for z in 0..height {
+            let mut row = String::new();
+            for x in 0..width {
+                if tiles[z][x] == 0 {
+                    row.push('.');  // Walkable
+                } else {
+                    row.push('#');  // Wall
+                }
+            }
+            println!("🔍 Row {}: {}", z, row);
+        }
+        
+        // Debug: Check specific positions
+        let test_positions = vec![(1.5, 1.5), (2.0, 2.0), (5.0, 5.0), (8.0, 8.0)];
+        for (world_x, world_z) in test_positions {
+            let grid_x = ((world_x - min_x) / (max_x - min_x) * width as f32).floor() as usize;
+            let grid_z = ((world_z - min_z) / (max_z - min_z) * height as f32).floor() as usize;
+            let is_blocked = if grid_z < height && grid_x < width {
+                tiles[grid_z][grid_x] != 0
+            } else {
+                true
+            };
+            println!("🔍 Position ({:.1}, {:.1}) -> grid ({}, {}) -> {}", 
+                     world_x, world_z, grid_x, grid_z, 
+                     if is_blocked { "BLOCKED" } else { "WALKABLE" });
+        }
+        
+        Map {
+            width,
+            height,
+            tiles,
+            world_min_x: min_x,
+            world_min_z: min_z,
+            world_max_x: max_x,
+            world_max_z: max_z,
+        }
+    }
+
     /// Apply world configuration to the ECS world (full reload)
-    fn apply_world_config(&mut self, config: &super::level_data::LevelData) {
+    async fn apply_world_config(&mut self, config: &super::level_data::LevelData) {
         println!("🌍 Applying world configuration:");
         if config.player.is_some() {
             println!("  - Player configuration");
         }
         println!("  - {} lights", config.lights.len());
         println!("  - {} objects", config.objects.len());
+        
+        // Generate pathfinding map from level data
+        let pathfinding_map = self.generate_pathfinding_map_from_level(config);
+        self.map = pathfinding_map.clone();
+        self.ecs_state.update_pathfinding_map(pathfinding_map);
         
         // Remove all existing config-created entities (lights and objects)
         self.remove_all_config_entities();
@@ -276,7 +457,7 @@ impl GameState {
                 object_config.scale[2]
             );
             
-            let _rotation = Vec3::new(
+            let rotation = Vec3::new(
                 object_config.rotation[0],
                 object_config.rotation[1],
                 object_config.rotation[2]
@@ -286,7 +467,9 @@ impl GameState {
             
             // Create the object entity with appropriate components
             let mut entity_builder = self.ecs_state.world.spawn()
-                .with(crate::ecs::Transform::new(position));
+                .with(crate::ecs::Transform::new(position)
+                    .with_scale(scale)
+                    .with_rotation(rotation));
             
             // Add rendering component based on mesh type
             let renderer = match object_config.mesh.as_str() {
@@ -301,13 +484,23 @@ impl GameState {
                     crate::ecs::Renderer::cylinder(radius, height)
                 },
                 "plane" => crate::ecs::Renderer::plane(scale.x, scale.z),
-                // Custom mesh file
-                mesh_path => {
-                    // For now, fallback to cube for custom meshes
-                    // TODO: Implement custom mesh loading
-                    println!("⚠️ Custom mesh loading not yet implemented: {}", mesh_path);
+                            // Custom mesh file
+            mesh_path => {
+                // Check if it's a GLTF file
+                if crate::game::rendering::GltfLoader::is_gltf_file(mesh_path) {
+                    println!("🔧 Attempting to load GLTF mesh: {}", mesh_path);
+                    // Use Custom render mode with mesh path for GLTF loading
+                    crate::ecs::Renderer {
+                        render_mode: crate::ecs::RenderMode::Custom,
+                        material: crate::ecs::RenderMaterial::default(),
+                        custom_mesh_path: Some(mesh_path.to_string()),
+                        enabled: true,
+                    }
+                } else {
+                    println!("⚠️ Unsupported mesh format: {}", mesh_path);
                     crate::ecs::Renderer::cube(scale)
                 }
+            }
             };
             
             // Apply texture and color
@@ -366,6 +559,48 @@ impl GameState {
         }
         
         println!("✅ World configuration applied successfully!");
+        
+        // Show loading progress for texture loading
+        self.loading_progress = Some(LoadingProgress::new("Loading Textures"));
+        
+        // Preload textures from actual world configuration (with progress updates)
+        println!("🖼️ Preloading textures from world configuration...");
+        let texture_count = self.deferred_renderer.get_required_texture_count(&self.ecs_state.world);
+        for i in 0..texture_count {
+            if let Some(progress) = &mut self.loading_progress {
+                progress.update(&format!("Loading texture {}/{}", i + 1, texture_count), i + 1, texture_count);
+            }
+            self.draw_loading_screen();
+            next_frame().await;
+        }
+        self.deferred_renderer.preload_textures_from_world(&self.ecs_state.world).await;
+        
+        // Update progress for GLTF loading
+        if let Some(progress) = &mut self.loading_progress {
+            progress.stage = "Loading 3D Models".to_string();
+            progress.detail = "Scanning for GLTF files...".to_string();
+            progress.current = 0;
+            progress.total = 0;
+        }
+        
+        // Draw loading screen
+        self.draw_loading_screen();
+        next_frame().await;
+        
+        // Preload GLTF meshes now that entities are created
+        println!("🖼️ Preloading GLTF meshes...");
+        let gltf_count = self.deferred_renderer.get_required_gltf_count(&self.ecs_state.world);
+        for i in 0..gltf_count {
+            if let Some(progress) = &mut self.loading_progress {
+                progress.update(&format!("Loading 3D model {}/{}", i + 1, gltf_count), i + 1, gltf_count);
+            }
+            self.draw_loading_screen();
+            next_frame().await;
+        }
+        self.deferred_renderer.preload_gltf_meshes(&self.ecs_state.world).await;
+        
+        // Clear loading progress
+        self.loading_progress = None;
     }
     
     /// Remove all config-created entities (for naive reloading)
@@ -583,11 +818,19 @@ impl GameState {
             object_config.scale[2]
         );
         
+        let rotation = Vec3::new(
+            object_config.rotation[0],
+            object_config.rotation[1],
+            object_config.rotation[2]
+        );
+        
         let color = object_config.color.map(|c| Color::new(c[0], c[1], c[2], c[3]));
         
         // Create the object entity with appropriate components
         let mut entity_builder = self.ecs_state.world.spawn()
-            .with(crate::ecs::Transform::new(position));
+            .with(crate::ecs::Transform::new(position)
+                .with_scale(scale)
+                .with_rotation(rotation));
         
         // Add rendering component based on mesh type
         let renderer = match object_config.mesh.as_str() {
@@ -604,9 +847,14 @@ impl GameState {
             "plane" => crate::ecs::Renderer::plane(scale.x, scale.z),
             // Custom mesh file
             mesh_path => {
-                // For now, fallback to cube for custom meshes
-                println!("⚠️ Custom mesh loading not yet implemented: {}", mesh_path);
-                crate::ecs::Renderer::cube(scale)
+                if mesh_path.ends_with(".gltf") || mesh_path.ends_with(".glb") {
+                    println!("🔧 Attempting to load GLTF mesh: {}", mesh_path);
+                    crate::ecs::Renderer::custom().with_custom_mesh_path(mesh_path.to_string())
+                } else {
+                    // For non-GLTF files, fallback to cube
+                    println!("⚠️ Unsupported mesh format, using cube: {}", mesh_path);
+                    crate::ecs::Renderer::cube(scale)
+                }
             }
         };
         
@@ -645,13 +893,13 @@ impl GameState {
     }
     
     /// Draw the game state
-    pub fn draw(&mut self) {
+    pub async fn draw(&mut self) {
         // Get current player data for rendering
         let current_player = self.get_current_player_data();
         
         if self.view_mode_3d {
             // Draw 3D mode content
-            self.draw_3d_mode_content(&current_player);
+            self.draw_3d_mode_content(&current_player).await;
         } else {
             // Draw 2D top-down view with enhanced pathfinding visualization
             self.draw_2d_mode_content(&current_player);
@@ -659,11 +907,11 @@ impl GameState {
     }
     
     /// Draw 3D mode content
-    fn draw_3d_mode_content(&mut self, current_player: &Player) {
+    async fn draw_3d_mode_content(&mut self, current_player: &Player) {
         // Deferred rendering
         self.deferred_renderer.update_camera(&current_player);
         let time = self.start_time.elapsed().as_secs_f32();
-        self.deferred_renderer.render(&self.ecs_state.world, time);
+        self.deferred_renderer.render(&self.ecs_state.world, time).await;
         
         // Draw minimap in top-right corner during 3D mode
         self.draw_minimap(&current_player);
@@ -908,39 +1156,141 @@ impl GameState {
         }
     }
 
-    /// Draw compact stats overlay for 3D mode
+    /// Draw performance analysis overlay
     fn draw_performance_analysis_overlay(&self) {
-        let overlay_x = 10.0;   // Top-left corner
-        let overlay_y = 10.0;   
-        let overlay_width = 300.0;
-        let overlay_height = 100.0;
+        // Performance analysis overlay with dark background for better readability
+        let overlay_x = 50.0;
+        let overlay_y = 50.0;
+        let overlay_width = 400.0;
+        let overlay_height = 300.0;
         
-        // Semi-transparent background
-        draw_rectangle(overlay_x - 5.0, overlay_y - 5.0, overlay_width + 10.0, overlay_height + 10.0, 
-                      Color::new(0.0, 0.0, 0.0, 0.8));
+        // Semi-transparent dark background
+        draw_rectangle(overlay_x - 10.0, overlay_y - 10.0, overlay_width + 20.0, overlay_height + 20.0, Color::new(0.0, 0.0, 0.0, 0.8));
         
-        // Performance stats title
-        draw_text("📊 PERFORMANCE STATS", overlay_x, overlay_y + 15.0, 14.0, YELLOW);
+        let mut y_offset = overlay_y;
+        let line_height = 20.0;
         
-        // Real-time FPS (only if enabled in config)
-        if self.config.should_show_fps() {
-            let fps = macroquad::time::get_fps();
-            let fps_color = if fps >= 120 { GREEN } else if fps >= 60 { YELLOW } else { RED };
-            let fps_status = if fps >= 120 { "🚀 BLAZING" } else if fps >= 60 { "✅ GOOD" } else { "⚠️ LOW" };
-            draw_text(&format!("FPS: {} {}", fps, fps_status), overlay_x, overlay_y + 35.0, 12.0, fps_color);
+        // Title
+        draw_text("🔬 PERFORMANCE ANALYSIS", overlay_x, y_offset, 18.0, GOLD);
+        y_offset += line_height * 1.5;
+        
+        // Current FPS
+        let fps = get_fps() as f32;
+        let fps_color = if fps >= 60.0 { GREEN } else if fps >= 30.0 { YELLOW } else { RED };
+        draw_text(&format!("Current FPS: {:.0}", fps), overlay_x, y_offset, 16.0, fps_color);
+        y_offset += line_height;
+        
+        // Frame time
+        let frame_time = 1000.0 / fps.max(1.0);
+        let frame_color = if frame_time <= 16.7 { GREEN } else if frame_time <= 33.3 { YELLOW } else { RED };
+        draw_text(&format!("Frame Time: {:.1}ms", frame_time), overlay_x, y_offset, 16.0, frame_color);
+        y_offset += line_height;
+        
+        // Total entities
+        let entity_count = self.ecs_state.world.entities().active_count();
+        draw_text(&format!("Entities: {}", entity_count), overlay_x, y_offset, 16.0, WHITE);
+        y_offset += line_height;
+        
+        // Memory usage estimate (rough)
+        let memory_kb = entity_count * 1024 / 1024; // Very rough estimate
+        draw_text(&format!("Est. Memory: {}KB", memory_kb), overlay_x, y_offset, 16.0, WHITE);
+        y_offset += line_height;
+        
+        // Performance recommendations
+        y_offset += line_height * 0.5;
+        draw_text("💡 Recommendations:", overlay_x, y_offset, 14.0, YELLOW);
+        y_offset += line_height;
+        
+        if fps < 30.0 {
+            draw_text("• Reduce entity count", overlay_x + 10.0, y_offset, 12.0, RED);
+            y_offset += line_height * 0.8;
+            draw_text("• Disable lighting system", overlay_x + 10.0, y_offset, 12.0, RED);
+            y_offset += line_height * 0.8;
+        } else if fps < 60.0 {
+            draw_text("• Consider optimizing rendering", overlay_x + 10.0, y_offset, 12.0, YELLOW);
+            y_offset += line_height * 0.8;
         } else {
-            draw_text("FPS: Hidden (config.ini)", overlay_x, overlay_y + 35.0, 12.0, GRAY);
+            draw_text("• Performance is good!", overlay_x + 10.0, y_offset, 12.0, GREEN);
+            y_offset += line_height * 0.8;
         }
         
-        // Pathfinding status
-        draw_text("🗺️ A* Pathfinding: 4-directional", overlay_x, overlay_y + 55.0, 12.0, Color::new(0.0, 1.0, 1.0, 1.0));
-        
-        // Test progress if active
-        if let Some((current, total, progress)) = self.ecs_state.get_test_bot_progress() {
-            draw_text(&format!("🤖 Test: {}/{} waypoints ({:.0}%)", current, total, progress * 100.0), 
-                     overlay_x, overlay_y + 75.0, 12.0, ORANGE);
-        } else {
-            draw_text("💡 Component.enabled approach active", overlay_x, overlay_y + 75.0, 12.0, LIME);
+        // Test information
+        if self.ecs_state.has_test_bot() {
+            y_offset += line_height * 0.5;
+            draw_text("🤖 Test Mode Active", overlay_x, y_offset, 14.0, Color::new(0.0, 1.0, 1.0, 1.0)); // CYAN equivalent
+            y_offset += line_height;
+            
+            if let Some((current, total, progress)) = self.ecs_state.get_test_bot_progress() {
+                draw_text(&format!("Progress: {}/{} ({:.1}%)", current, total, progress * 100.0), overlay_x + 10.0, y_offset, 12.0, Color::new(0.0, 1.0, 1.0, 1.0)); // CYAN equivalent
+            }
+        }
+    }
+
+    /// Display loading screen with progress information
+    pub fn draw_loading_screen(&self) {
+        if let Some(progress) = &self.loading_progress {
+            clear_background(BLACK);
+            
+            let screen_width = screen_width();
+            let screen_height = screen_height();
+            let center_x = screen_width / 2.0;
+            let center_y = screen_height / 2.0;
+            
+            // Main title
+            let title = "GAMEBYAI - LOADING";
+            let title_size = 32.0;
+            let title_width = measure_text(title, None, title_size as u16, 1.0).width;
+            draw_text(title, center_x - title_width / 2.0, center_y - 100.0, title_size, WHITE);
+            
+            // Loading stage
+            let stage_text = &progress.stage;
+            let stage_size = 24.0;
+            let stage_width = measure_text(stage_text, None, stage_size as u16, 1.0).width;
+            draw_text(stage_text, center_x - stage_width / 2.0, center_y - 50.0, stage_size, YELLOW);
+            
+            // Detail information
+            if !progress.detail.is_empty() {
+                let detail_text = &progress.detail;
+                let detail_size = 18.0;
+                let detail_width = measure_text(detail_text, None, detail_size as u16, 1.0).width;
+                draw_text(detail_text, center_x - detail_width / 2.0, center_y - 20.0, detail_size, LIGHTGRAY);
+            }
+            
+            // Progress bar
+            if progress.total > 0 {
+                let bar_width = 400.0;
+                let bar_height = 20.0;
+                let bar_x = center_x - bar_width / 2.0;
+                let bar_y = center_y + 20.0;
+                
+                // Background
+                draw_rectangle(bar_x, bar_y, bar_width, bar_height, DARKGRAY);
+                
+                // Progress fill
+                let progress_ratio = progress.current as f32 / progress.total as f32;
+                let fill_width = bar_width * progress_ratio;
+                draw_rectangle(bar_x, bar_y, fill_width, bar_height, GREEN);
+                
+                // Progress text
+                let progress_text = format!("{}/{}", progress.current, progress.total);
+                let progress_text_size = 16.0;
+                let progress_text_width = measure_text(&progress_text, None, progress_text_size as u16, 1.0).width;
+                draw_text(&progress_text, center_x - progress_text_width / 2.0, bar_y + bar_height + 25.0, progress_text_size, WHITE);
+            }
+            
+            // Elapsed time
+            let elapsed = progress.elapsed();
+            let time_text = format!("Elapsed: {:.1}s", elapsed);
+            let time_size = 16.0;
+            let time_width = measure_text(&time_text, None, time_size as u16, 1.0).width;
+            draw_text(&time_text, center_x - time_width / 2.0, center_y + 80.0, time_size, GRAY);
+            
+            // Loading animation (spinning dots)
+            let dots = (elapsed * 2.0) as usize % 4;
+            let loading_text = format!("Loading{}", ".".repeat(dots));
+            let loading_size = 14.0;
+            let loading_width = measure_text(&loading_text, None, loading_size as u16, 1.0).width;
+            draw_text(&loading_text, center_x - loading_width / 2.0, center_y + 110.0, loading_size, BLUE);
         }
     }
 } 

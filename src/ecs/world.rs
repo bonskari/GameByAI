@@ -1,7 +1,6 @@
 //! World - the main ECS container
 
 use crate::ecs::{Entity, EntityManager, ComponentManager, Component};
-use std::any::{Any, TypeId};
 
 /// Read-only view of the world for component updates
 pub struct WorldView<'a> {
