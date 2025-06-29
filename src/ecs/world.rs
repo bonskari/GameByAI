@@ -1,8 +1,7 @@
 //! World - the main ECS container
 
 use crate::ecs::{Entity, EntityManager, ComponentManager, Component};
-use std::any::Any;
-use std::any::TypeId;
+use std::any::{Any, TypeId};
 
 /// Read-only view of the world for component updates
 pub struct WorldView<'a> {
@@ -231,14 +230,14 @@ impl World {
         (None, None)
     }
 
-    /// Automatically update all registered components
+    /// Update all registered components using the inventory system
     pub fn update_all_components(&mut self, delta_time: f32) {
         // Use inventory to discover and update all registered components
         for registration in inventory::iter::<crate::ecs::component::ComponentRegistration> {
             (registration.updater)(self, delta_time);
         }
     }
-
+    
     /// Update all components of a specific type that implement AutoUpdatable
     pub fn update_component_type<T: crate::ecs::component::AutoUpdatable>(&mut self, delta_time: f32) {
         // Collect entities with this component type to avoid borrowing issues
@@ -249,7 +248,7 @@ impl World {
                 return; // No storage for this component type
             }
         };
-
+        
         // Update each component
         for entity in entities_with_component {
             if !self.is_valid(entity) {

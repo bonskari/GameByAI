@@ -1,0 +1,49 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Minimal Changes Rule
+
+## Core Philosophy
+- **Make only the smallest necessary changes to fix reported issues**
+- Don't refactor working code while debugging
+- Test current state before assuming something is broken
+- One problem at a time - don't fix multiple unrelated issues
+
+## Debugging Approach
+1. **Understand the current state first**
+   - Run the game/code to see actual behavior
+   - Read debug output carefully
+   - Don't assume something is broken without evidence
+
+2. **Identify the root cause**
+   - Add debug logging if needed to understand what's happening
+   - Trace the problem to its source
+   - Don't make changes based on assumptions
+
+3. **Apply targeted fixes**
+   - Change only what's necessary to fix the specific issue
+   - Don't "improve" other parts of the code during bug fixes
+   - Don't refactor architecture while debugging
+
+## What NOT to do during debugging
+- Don't rewrite working systems because they "look wrong"
+- Don't change coding patterns that are already functioning
+- Don't make multiple unrelated changes in one session
+- Don't optimize or clean up code unless specifically requested
+
+## Git Practices
+- Use `git status` before making changes
+- Consider `git reset --hard` when changes become too complex
+- Commit working states before attempting major changes
+- Make small, focused commits
+
+## Example Approach
+```
+Problem: "Physics not working"
+1. Run game and observe actual behavior
+2. Check debug output for what's really happening  
+3. Identify specific issue (e.g., missing input, collision detection)
+4. Fix ONLY that specific issue
+5. Test to confirm fix works

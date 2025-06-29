@@ -3,7 +3,7 @@
 use macroquad::prelude::*;
 use crate::game::{Player};
 use crate::game::map::WallType;
-use crate::ecs::{World, Transform, StaticRenderer, Wall, Floor, Ceiling, WallMesh, FloorMesh, LightReceiver, Renderable, RenderData, RenderType};
+use crate::ecs::{World, Transform, StaticRenderer, Wall, Floor, Ceiling, LightReceiver, LightSource, Renderable, RenderData, RenderType, Renderer, RenderMode, StaticMesh};
 use std::collections::HashMap;
 
 /// Modern 3D renderer with ECS-based rendering only
@@ -88,8 +88,6 @@ impl Modern3DRenderer {
         self.camera.target = self.camera.position + vec3(look_x, look_y, look_z);
     }
 
-
-
     /// Render ECS entities - unified approach for all renderable components
     pub fn render_ecs_entities(&mut self, world: &World) {
         // Set the 3D camera for ECS rendering
@@ -110,20 +108,10 @@ impl Modern3DRenderer {
     fn render_mesh_components(&mut self, world: &World) {
         let mut mesh_count = 0;
         
-        // Render WallMesh components using unified approach
-        for (entity, transform, wall_mesh) in world.query_2::<Transform, WallMesh>() {
-            if self.should_render_entity(entity, world) && wall_mesh.should_render() && transform.is_enabled() {
-                if let Some(mesh) = &wall_mesh.mesh {
-                    draw_mesh(mesh);
-                    mesh_count += 1;
-                }
-            }
-        }
-        
-        // Render FloorMesh components using unified approach
-        for (entity, transform, floor_mesh) in world.query_2::<Transform, FloorMesh>() {
-            if self.should_render_entity(entity, world) && floor_mesh.should_render() && transform.is_enabled() {
-                if let Some(mesh) = &floor_mesh.mesh {
+        // Render StaticMesh components (walls, floors, ceilings)
+        for (entity, transform, static_mesh) in world.query_2::<Transform, StaticMesh>() {
+            if self.should_render_entity(entity, world) && static_mesh.enabled && transform.is_enabled() {
+                if let Some(mesh) = &static_mesh.mesh {
                     draw_mesh(mesh);
                     mesh_count += 1;
                 }
@@ -135,7 +123,7 @@ impl Modern3DRenderer {
         unsafe {
             MESH_FRAME_COUNT += 1;
             if MESH_FRAME_COUNT % 300 == 0 {
-                println!("ECS Unified Mesh Rendering: {} meshes", mesh_count);
+                println!("🏗️ ECS Unified Mesh Rendering: {} StaticMesh entities", mesh_count);
             }
         }
     }
@@ -143,12 +131,31 @@ impl Modern3DRenderer {
     /// Render all entities with renderable components - truly unified!
     fn render_static_components(&mut self, world: &World) {
         let mut render_count = 0;
+        let mut renderer_count = 0;
         
-        // Render StaticRenderer components
-        for (entity, transform, renderable) in world.query_2::<Transform, StaticRenderer>() {
-            if self.should_render_entity(entity, world) && renderable.should_render() && transform.is_enabled() {
-                let render_data = renderable.get_render_data();
-                self.render_with_data(transform, &render_data);
+        // Render new Renderer components (replaces StaticRenderer)
+        for (entity, transform, renderer) in world.query_2::<Transform, Renderer>() {
+            renderer_count += 1;
+            if self.should_render_entity(entity, world) && renderer.should_render() && transform.is_enabled() {
+                self.render_with_renderer_component(entity, transform, renderer, world);
+                render_count += 1;
+            }
+        }
+        
+        // Still support legacy StaticRenderer for backward compatibility during transition
+        for (entity, transform, static_renderer) in world.query_2::<Transform, StaticRenderer>() {
+            if self.should_render_entity(entity, world) && static_renderer.should_render() && transform.is_enabled() {
+                // Check if this entity is a light source to render as sphere
+                let is_light_source = world.has::<LightSource>(entity);
+                
+                if is_light_source {
+                    // Render light sources as glowing spheres
+                    self.render_light_sphere(transform, static_renderer, world.get::<LightSource>(entity));
+                } else {
+                    // Render normal entities
+                    let render_data = static_renderer.get_render_data();
+                    self.render_with_data(transform, &render_data);
+                }
                 render_count += 1;
             }
         }
@@ -158,7 +165,7 @@ impl Modern3DRenderer {
         unsafe {
             RENDER_FRAME_COUNT += 1;
             if RENDER_FRAME_COUNT % 300 == 0 {
-                println!("ECS Unified Rendering: {} renderable entities", render_count);
+                println!("🎨 ECS Unified Rendering: {} renderable entities ({} Renderer components found)", render_count, renderer_count);
             }
         }
     }
@@ -177,6 +184,97 @@ impl Modern3DRenderer {
             RenderType::Custom => {
                 // Handle custom rendering if needed
             },
+        }
+    }
+
+    /// Render using the new Renderer component
+    fn render_with_renderer_component(&self, entity: crate::ecs::Entity, transform: &Transform, renderer: &Renderer, world: &World) {
+        // Check if this entity is a light source for special handling
+        let is_light_source = world.has::<LightSource>(entity);
+        
+        match &renderer.render_mode {
+            RenderMode::UseMeshData => {
+                // Check for StaticMesh component on same entity
+                if let Some(static_mesh) = world.get::<StaticMesh>(entity) {
+                    if let Some(mesh) = &static_mesh.mesh {
+                        draw_mesh(mesh);
+                    }
+                }
+            },
+            RenderMode::Cube { size } => {
+                let texture = renderer.material.texture_name.as_ref()
+                    .and_then(|name| self.get_wall_texture_by_name(name))
+                    .or(renderer.material.texture.as_ref());
+                draw_cube(transform.position, *size, texture, renderer.material.color);
+            },
+            RenderMode::Sphere { radius } => {
+                // Special handling for light sources
+                if is_light_source {
+                    if let Some(light_source) = world.get::<LightSource>(entity) {
+                        self.render_light_sphere_new(transform, renderer, Some(light_source));
+                    } else {
+                        self.render_light_sphere_new(transform, renderer, None);
+                    }
+                } else {
+                    // Normal sphere rendering
+                    draw_sphere(transform.position, *radius, renderer.material.texture.as_ref(), renderer.material.color);
+                }
+            },
+            RenderMode::Cylinder { radius, height } => {
+                // For now, render as cube until we have cylinder primitive
+                let size = Vec3::new(*radius * 2.0, *height, *radius * 2.0);
+                let texture = renderer.material.texture.as_ref();
+                draw_cube(transform.position, size, texture, renderer.material.color);
+            },
+            RenderMode::Plane { width, height } => {
+                // For now, render as thin cube
+                let size = Vec3::new(*width, 0.01, *height);
+                let texture = renderer.material.texture.as_ref();
+                draw_cube(transform.position, size, texture, renderer.material.color);
+            },
+            RenderMode::Custom => {
+                // Handle custom rendering if needed
+            },
+        }
+    }
+
+    /// Render a light source as a glowing sphere using new Renderer component
+    fn render_light_sphere_new(&self, transform: &Transform, renderer: &Renderer, light_source: Option<&LightSource>) {
+        if !renderer.material.visible {
+            return;
+        }
+        
+        let sphere_radius = if let RenderMode::Sphere { radius } = &renderer.render_mode {
+            *radius
+        } else {
+            0.15 // Default radius
+        };
+        
+        let sphere_color = if let Some(light) = light_source {
+            // Use the light's color, but make it more visible
+            Color::new(
+                (light.color.r + 0.5).min(1.0),
+                (light.color.g + 0.5).min(1.0), 
+                (light.color.b + 0.5).min(1.0),
+                1.0
+            )
+        } else {
+            renderer.material.color
+        };
+        
+        // Draw sphere using macroquad's draw_sphere
+        draw_sphere(transform.position, sphere_radius, None, sphere_color);
+        
+        // Optionally draw a subtle glow effect around the sphere
+        if let Some(light) = light_source {
+            let glow_radius = sphere_radius * 2.0;
+            let glow_color = Color::new(
+                light.color.r, 
+                light.color.g, 
+                light.color.b, 
+                0.2 // Semi-transparent glow
+            );
+            draw_sphere(transform.position, glow_radius, None, glow_color);
         }
     }
 
@@ -231,5 +329,40 @@ impl Modern3DRenderer {
         };
         
         self.wall_textures.get(&wall_type)
+    }
+
+    /// Render a light source as a glowing sphere
+    fn render_light_sphere(&self, transform: &Transform, static_renderer: &StaticRenderer, light_source: Option<&LightSource>) {
+        if !static_renderer.visible {
+            return;
+        }
+        
+        let sphere_radius = 0.15; // Small sphere for light visualization
+        let sphere_color = if let Some(light) = light_source {
+            // Use the light's color, but make it more visible
+            Color::new(
+                (light.color.r + 0.5).min(1.0),
+                (light.color.g + 0.5).min(1.0), 
+                (light.color.b + 0.5).min(1.0),
+                1.0
+            )
+        } else {
+            static_renderer.color
+        };
+        
+        // Draw sphere using macroquad's draw_sphere
+        draw_sphere(transform.position, sphere_radius, None, sphere_color);
+        
+        // Optionally draw a subtle glow effect around the sphere
+        if let Some(light) = light_source {
+            let glow_radius = sphere_radius * 2.0;
+            let glow_color = Color::new(
+                light.color.r, 
+                light.color.g, 
+                light.color.b, 
+                0.2 // Semi-transparent glow
+            );
+            draw_sphere(transform.position, glow_radius, None, glow_color);
+        }
     }
 } 

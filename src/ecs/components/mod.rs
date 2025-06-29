@@ -17,6 +17,6 @@ pub use player::Player;
 pub use collision::{Collider, ColliderShape, ColliderMaterial};
 pub use entities::{Wall, Floor, Ceiling, Prop};
 pub use pathfinding::{TestWaypoint, Pathfinder, TestBot};
-pub use meshes::{StaticMesh, StaticMeshType};
+pub use meshes::{StaticMesh, StaticMeshType, Renderer, RenderMode, RenderMaterial};
 pub use lighting::{LightSource, LightSourceType, LightReceiver, LightingTest, LightingTestPhase};
 pub use rendering::{StaticRenderer, MaterialType, Renderable, RenderData, RenderType}; 

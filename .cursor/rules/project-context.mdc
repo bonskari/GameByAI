@@ -1,0 +1,72 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# GameByAI Project Context
+
+## Project Overview
+- **Name**: GameByAI - 3D Rust Game Engine with AI-Generated Content
+- **Language**: Rust
+- **Rendering**: macroquad for 3D graphics and input handling
+- **Architecture**: Custom Entity-Component-System (ECS) implementation
+- **AI Features**: Procedural texture generation using AI models
+
+## Key Technologies
+- **Rust**: Primary programming language
+- **macroquad**: 3D rendering, window management, input handling
+- **Custom ECS**: Entity-Component-System architecture for game logic
+- **AI Integration**: Stable Diffusion for texture generation
+- **Procedural Generation**: Level generation and content creation
+
+## Project Structure
+```
+src/
+├── main.rs                 # Entry point and main game loop
+├── cli.rs                  # Command-line interface
+├── ecs/                    # Custom ECS implementation
+│   ├── component.rs        # Component trait and utilities
+│   ├── components.rs       # All component definitions
+│   ├── entity.rs           # Entity management
+│   ├── system.rs           # System trait
+│   ├── systems.rs          # All system implementations
+│   ├── world.rs            # ECS World container
+│   └── query.rs            # Component query system
+├── game/                   # Game-specific logic
+│   ├── state.rs            # Main game state
+│   ├── ecs_state.rs        # ECS game state management
+│   ├── input.rs            # Input handling
+│   ├── player.rs           # Player entity logic
+│   ├── map.rs              # Map/level definitions
+│   └── rendering/          # 3D rendering systems
+└── testing/                # Test framework and utilities
+```
+
+## ECS Architecture
+- **Custom implementation** with type-safe SystemManager
+- **Components**: Transform, Velocity, Player, Collider, etc.
+- **Systems**: PhysicsSystem, PlayerMovementSystem, RenderingSystem
+- **World**: Central container for entities and components
+- **Type-safe system lookup**: Uses `HashMap<TypeId, Box<dyn System>>`
+
+## Key Systems
+1. **PhysicsSystem**: Gravity, collision detection, movement physics
+2. **PlayerMovementSystem**: WASD input processing and movement calculations  
+3. **RenderingSystem**: 3D mesh rendering and camera management
+4. **CollisionSystem**: Wall, floor, and entity collision detection
+
+## Input Handling
+- **WASD**: Player movement (forward, backward, strafe left/right)
+- **Mouse**: Camera look/rotation
+- **Space**: Jump
+- **Tab**: Toggle 2D/3D view mode
+
+## Performance Characteristics
+- **Target**: 60+ FPS for smooth gameplay
+- **ECS Benefits**: Component queries, system isolation, data-oriented design
+- **Optimization**: Type-safe O(1) system lookup, efficient memory layout
+
+## AI Integration
+- **Texture Generation**: On-demand AI texture creation
+- **Procedural Content**: AI-assisted level and asset generation
+- **Content Pipeline**: Automated texture caching and management

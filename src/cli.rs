@@ -59,4 +59,25 @@ pub enum Commands {
         #[arg(long)]
         local_only: bool,
     },
+    /// Control lighting in the game
+    #[command(name = "lighting")]
+    Lighting {
+        /// Lighting action to perform
+        #[command(subcommand)]
+        action: LightingAction,
+    },
+}
+
+/// Lighting control actions
+#[derive(Subcommand)]
+pub enum LightingAction {
+    /// Create a single omni light with sphere mesh in the center
+    #[command(name = "single-omni")]
+    SingleOmni,
+    /// Remove all lights from the scene
+    #[command(name = "remove-all")]
+    RemoveAll,
+    /// Start lighting performance tests
+    #[command(name = "test")]
+    Test,
 } 

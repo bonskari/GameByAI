@@ -7,7 +7,7 @@
 
 use macroquad::prelude::*;
 use crate::game::Player;
-use crate::ecs::{World, Transform, StaticRenderer, LightSource, LightReceiver, StaticMesh};
+use crate::ecs::{World, Transform, StaticRenderer, LightSource, LightReceiver, StaticMesh, Renderer, RenderMode};
 use std::collections::HashMap;
 
 /// G-Buffer textures for deferred rendering
@@ -214,6 +214,14 @@ impl DeferredRenderer {
             }
         }
 
+        // Render new Renderer components (light spheres, etc.)
+        for (entity, transform, renderer) in world.query_2::<Transform, Renderer>() {
+            if world.is_valid(entity) && entity.enabled && renderer.enabled && transform.is_enabled() {
+                self.render_renderer_to_gbuffer(entity, transform, renderer, world);
+                geometry_count += 1;
+            }
+        }
+
         set_default_camera();
 
         // Debug output
@@ -348,5 +356,91 @@ impl DeferredRenderer {
         };
         
         self.wall_textures.get(&wall_type)
+    }
+
+    /// Render a new Renderer component to G-buffer
+    fn render_renderer_to_gbuffer(&self, entity: crate::ecs::Entity, transform: &Transform, renderer: &Renderer, world: &World) {
+        if !renderer.material.visible {
+            return;
+        }
+        
+        // Check if this entity is a light source for special handling
+        let is_light_source = world.has::<LightSource>(entity);
+        
+        match &renderer.render_mode {
+            RenderMode::Sphere { radius } => {
+                // Special handling for light sources
+                if is_light_source {
+                    if let Some(light_source) = world.get::<LightSource>(entity) {
+                        self.render_light_sphere_deferred(transform, renderer, Some(light_source));
+                    } else {
+                        self.render_light_sphere_deferred(transform, renderer, None);
+                    }
+                } else {
+                    // Normal sphere rendering
+                    draw_sphere(transform.position, *radius, renderer.material.texture.as_ref(), renderer.material.color);
+                }
+            },
+            RenderMode::Cube { size } => {
+                draw_cube(transform.position, *size, renderer.material.texture.as_ref(), renderer.material.color);
+            },
+            RenderMode::Cylinder { radius, height } => {
+                // Render as cube until we have cylinder primitive
+                let size = Vec3::new(*radius * 2.0, *height, *radius * 2.0);
+                draw_cube(transform.position, size, renderer.material.texture.as_ref(), renderer.material.color);
+            },
+            RenderMode::Plane { width, height } => {
+                // Render as thin cube
+                let size = Vec3::new(*width, 0.01, *height);
+                draw_cube(transform.position, size, renderer.material.texture.as_ref(), renderer.material.color);
+            },
+            RenderMode::UseMeshData => {
+                // Check for StaticMesh component on same entity
+                if let Some(static_mesh) = world.get::<StaticMesh>(entity) {
+                    if let Some(mesh) = &static_mesh.mesh {
+                        draw_mesh(mesh);
+                    }
+                }
+            },
+            RenderMode::Custom => {
+                // Handle custom rendering if needed
+            },
+        }
+    }
+    
+    /// Render a light source as a glowing sphere in deferred pipeline
+    fn render_light_sphere_deferred(&self, transform: &Transform, renderer: &Renderer, light_source: Option<&LightSource>) {
+        let sphere_radius = if let RenderMode::Sphere { radius } = &renderer.render_mode {
+            *radius
+        } else {
+            0.15 // Default radius
+        };
+        
+        let sphere_color = if let Some(light) = light_source {
+            // Use the light's color, but make it more visible
+            Color::new(
+                (light.color.r + 0.5).min(1.0),
+                (light.color.g + 0.5).min(1.0), 
+                (light.color.b + 0.5).min(1.0),
+                1.0
+            )
+        } else {
+            renderer.material.color
+        };
+        
+        // Draw sphere using macroquad's draw_sphere
+        draw_sphere(transform.position, sphere_radius, None, sphere_color);
+        
+        // Optionally draw a subtle glow effect around the sphere
+        if let Some(light) = light_source {
+            let glow_radius = sphere_radius * 2.0;
+            let glow_color = Color::new(
+                light.color.r, 
+                light.color.g, 
+                light.color.b, 
+                0.2 // Semi-transparent glow
+            );
+            draw_sphere(transform.position, glow_radius, None, glow_color);
+        }
     }
 } 

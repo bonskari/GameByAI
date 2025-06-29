@@ -1,7 +1,7 @@
-//! Rendering components and traits
+//! Rendering components and systems
 
 use macroquad::prelude::*;
-use crate::ecs::Component;
+use crate::ecs::{Component, World, Entity, Transform, component::{ComponentRegistration}};
 
 /// Unified renderer for all static geometry (walls, floors, ceilings, props)
 pub struct StaticRenderer {
@@ -165,10 +165,15 @@ impl Clone for StaticRenderer {
 pub trait Renderable: Component {
     /// Get the render data for this component
     fn get_render_data(&self) -> RenderData;
-
+    
     /// Check if this component should be rendered
     fn should_render(&self) -> bool {
-        self.is_enabled()
+        true
+    }
+    
+    /// Get the render priority (lower = rendered first)
+    fn render_priority(&self) -> u32 {
+        100 // Default priority
     }
 }
 

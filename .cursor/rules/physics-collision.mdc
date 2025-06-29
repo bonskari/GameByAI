@@ -1,0 +1,81 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Physics and Collision System Guidelines
+
+## Core Principles
+- Understand the difference between wall colliders, floor colliders, and ceiling colliders
+- Don't remove working collision systems without understanding the full impact
+- Ground detection should use Y-level checking, not necessarily floor colliders
+- Collision detection must consider vertical separation between objects
+
+## Collision System Architecture
+- **Wall Colliders**: Block horizontal movement, attached to Wall entities
+- **Floor Colliders**: Provide ground surface for grounding detection
+- **Ceiling Colliders**: Prevent upward movement through ceilings
+- **Player Collider**: Capsule shape for smooth movement and collision
+
+## Physics System Guidelines
+
+### Grounding Logic
+- Player is grounded when at appropriate Y level (typically Y=0.6 for floor at Y=0)
+- Ground collision should stop downward velocity but allow horizontal movement
+- Wall collision should stop horizontal movement but allow vertical movement (falling)
+
+### Collision Detection Best Practices
+```rust
+// Check collision type and respond appropriately
+if collision_detected {
+    // Determine if it's ground or wall collision
+    if is_ground_collision {
+        // Stop falling, allow horizontal movement
+        velocity.linear.y = 0.0;
+        grounded = true;
+    } else {
+        // Wall collision - stop horizontal, keep vertical physics
+        velocity.linear.x = 0.0;
+        velocity.linear.z = 0.0;
+        // Keep Y velocity for gravity/jumping
+    }
+}
+```
+
+### Common Mistakes to Avoid
+- **Don't block ALL movement when ANY collision is detected**
+- **Don't remove floor colliders without understanding grounding system**
+- **Don't assume floor colliders should block horizontal movement**
+- **Don't create overlapping colliders that interfere with each other**
+
+## Debugging Physics Issues
+1. **Check if physics systems are running** (look for debug output)
+2. **Verify input is being captured** (check input debug messages)
+3. **Understand what type of collision is occurring** (wall vs floor vs ceiling)
+4. **Test collision detection separately from movement application**
+
+## Player Movement Integration
+- Input should be captured in main game loop
+- Input should be passed to ECS systems via `update_with_input()`
+- Movement calculations should happen in PlayerMovementSystem
+- Physics (gravity, collision) should happen in PhysicsSystem
+- Systems should run in proper order: Input → Movement → Physics
+
+## Collider Configuration
+```rust
+// Player collider example
+Collider::dynamic_solid(ColliderShape::Capsule { 
+    height: 1.8, 
+    radius: 0.25 
+})
+
+// Floor collider example  
+Collider::static_solid(ColliderShape::Box { 
+    size: Vec3::new(1.0, 0.1, 1.0) 
+})
+
+// Wall collider example
+Collider::static_solid(ColliderShape::Box { 
+    size: Vec3::new(1.0, 2.0, 1.0) 
+})
+```

@@ -3,3 +3,95 @@ description:
 globs:
 alwaysApply: false
 ---
+# Component Auto-Registration with Inventory
+
+## System Overview
+- Uses the `inventory` crate for compile-time component discovery
+- Components auto-register themselves using `inventory::submit!`
+- `World::update_all_components()` automatically calls update on all registered components
+- No manual registration required - just implement `AutoUpdatable` and submit registration
+
+## Implementation Pattern
+
+### 1. Component Registration
+```rust
+use crate::ecs::{Component, component::{AutoUpdatable, ComponentRegistration}};
+
+// Auto-register the component
+inventory::submit! {
+    ComponentRegistration {
+        type_name: "MyComponent",
+        updater: |world, delta_time| {
+            world.update_component_type::<MyComponent>(delta_time);
+        },
+    }
+}
+```
+
+### 2. AutoUpdatable Implementation
+```rust
+impl AutoUpdatable for MyComponent {
+    fn auto_update(&mut self, entity: Entity, delta_time: f32) {
+        // Self-contained update logic only
+        // NO cross-component access allowed here
+        self.internal_timer += delta_time;
+    }
+}
+```
+
+### 3. World Integration
+```rust
+// In EcsGameState::update_ecs_systems()
+self.world.update_all_components(delta_time); // Calls all registered components
+```
+
+## Key Rules
+
+### What Auto-Update CAN Do
+- Modify the component's own fields
+- Update internal timers, counters, state machines
+- Perform self-contained calculations
+- Log component status
+
+### What Auto-Update CANNOT Do
+- Access other components on the same entity
+- Access components on other entities
+- Modify the World directly
+- Call ECS queries
+
+### For Cross-Component Logic
+- Keep existing explicit systems in EcsGameState
+- Use explicit component queries for complex interactions
+- Handle pathfinding, physics, rendering in dedicated systems
+- Auto-update is for simple, self-contained component state
+
+## Benefits
+- True modularity: add component file + implement trait = automatic ECS integration
+- No manual registration in EcsGameState required
+- Compile-time discovery of components
+- Zero runtime overhead for registration
+
+## Example: Converting Existing Component
+```rust
+// OLD: Manual update in EcsGameState
+impl TestBot {
+    // Logic was in EcsGameState::update_test_bot_components()
+}
+
+// NEW: Auto-registered with self-contained update
+inventory::submit! {
+    ComponentRegistration {
+        type_name: "TestBot",
+        updater: |world, delta_time| {
+            world.update_component_type::<TestBot>(delta_time);
+        },
+    }
+}
+
+impl AutoUpdatable for TestBot {
+    fn auto_update(&mut self, entity: Entity, delta_time: f32) {
+        // Only update TestBot's internal state
+        // Cross-component logic stays in EcsGameState
+    }
+}
+```

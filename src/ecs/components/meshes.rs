@@ -1,16 +1,196 @@
-//! Mesh components for rendering
+//! Mesh-related components for ECS entities
 
 use macroquad::prelude::*;
-use crate::ecs::Component;
+use crate::ecs::{Component, component::{AutoUpdatable, ComponentRegistration}};
 // Forward declaration - will be resolved by mod.rs re-exports
 
-/// Unified mesh component for all static geometry (walls, floors, ceilings)
+/// Auto-register Renderer component
+inventory::submit! {
+    ComponentRegistration {
+        type_name: "Renderer",
+        updater: |world, delta_time| {
+            world.update_component_type::<Renderer>(delta_time);
+        },
+    }
+}
+
+/// Auto-register StaticMesh component
+inventory::submit! {
+    ComponentRegistration {
+        type_name: "StaticMesh",
+        updater: |world, delta_time| {
+            world.update_component_type::<StaticMesh>(delta_time);
+        },
+    }
+}
+
+/// Pure data component that holds mesh geometry data
 pub struct StaticMesh {
     pub mesh: Option<Mesh>,
     pub mesh_type: StaticMeshType,
     pub enabled: bool,
 }
 
+/// Renderer component that handles the actual rendering behavior
+pub struct Renderer {
+    pub render_mode: RenderMode,
+    pub material: RenderMaterial,
+    pub enabled: bool,
+}
+
+/// Different rendering modes
+#[derive(Debug)]
+pub enum RenderMode {
+    /// Render as a cube primitive
+    Cube { size: Vec3 },
+    /// Render as a sphere primitive  
+    Sphere { radius: f32 },
+    /// Render as a cylinder primitive
+    Cylinder { radius: f32, height: f32 },
+    /// Render as a plane primitive
+    Plane { width: f32, height: f32 },
+    /// Use mesh data from StaticMesh component on same entity
+    UseMeshData,
+    /// Custom rendering (can be extended)
+    Custom,
+}
+
+/// Material properties for rendering
+#[derive(Debug)]
+pub struct RenderMaterial {
+    pub color: Color,
+    pub texture: Option<Texture2D>,
+    pub texture_name: Option<String>,
+    pub visible: bool,
+}
+
+impl Renderer {
+    /// Create renderer that uses mesh data from StaticMesh component
+    pub fn from_mesh() -> Self {
+        Self {
+            render_mode: RenderMode::UseMeshData,
+            material: RenderMaterial::default(),
+            enabled: true,
+        }
+    }
+
+    /// Create renderer with cube primitive
+    pub fn cube(size: Vec3) -> Self {
+        Self {
+            render_mode: RenderMode::Cube { size },
+            material: RenderMaterial::default(),
+            enabled: true,
+        }
+    }
+
+    /// Create renderer with sphere primitive
+    pub fn sphere(radius: f32) -> Self {
+        Self {
+            render_mode: RenderMode::Sphere { radius },
+            material: RenderMaterial::default(),
+            enabled: true,
+        }
+    }
+
+    /// Create renderer with cylinder primitive
+    pub fn cylinder(radius: f32, height: f32) -> Self {
+        Self {
+            render_mode: RenderMode::Cylinder { radius, height },
+            material: RenderMaterial::default(),
+            enabled: true,
+        }
+    }
+
+    /// Create renderer with plane primitive
+    pub fn plane(width: f32, height: f32) -> Self {
+        Self {
+            render_mode: RenderMode::Plane { width, height },
+            material: RenderMaterial::default(),
+            enabled: true,
+        }
+    }
+
+    /// Set the color
+    pub fn with_color(mut self, color: Color) -> Self {
+        self.material.color = color;
+        self
+    }
+
+    /// Set the texture
+    pub fn with_texture(mut self, texture: Texture2D) -> Self {
+        self.material.texture = Some(texture);
+        self
+    }
+
+    /// Set the texture name for deferred loading
+    pub fn with_texture_name(mut self, texture_name: String) -> Self {
+        self.material.texture_name = Some(texture_name);
+        self
+    }
+
+    /// Set visibility
+    pub fn with_visible(mut self, visible: bool) -> Self {
+        self.material.visible = visible;
+        self
+    }
+
+    /// Set enabled state
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    /// Check if this should be rendered
+    pub fn should_render(&self) -> bool {
+        self.enabled && self.material.visible
+    }
+
+    /// Get render mode name for debugging
+    pub fn get_mode_name(&self) -> &'static str {
+        match &self.render_mode {
+            RenderMode::Cube { .. } => "Cube",
+            RenderMode::Sphere { .. } => "Sphere", 
+            RenderMode::Cylinder { .. } => "Cylinder",
+            RenderMode::Plane { .. } => "Plane",
+            RenderMode::UseMeshData => "MeshData",
+            RenderMode::Custom => "Custom",
+        }
+    }
+}
+
+impl Default for RenderMaterial {
+    fn default() -> Self {
+        Self {
+            color: WHITE,
+            texture: None,
+            texture_name: None,
+            visible: true,
+        }
+    }
+}
+
+impl Component for Renderer {
+    fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    fn disable(&mut self) {
+        self.enabled = false;
+    }
+}
+
+impl AutoUpdatable for Renderer {
+    fn auto_update(&mut self, _entity: crate::ecs::Entity, _delta_time: f32) {
+        // Renderer components don't need per-frame updates
+        // Rendering happens in the rendering system
+    }
+}
+
+/// Types of static meshes for identification
 #[derive(Debug, Clone, PartialEq)]
 pub enum StaticMeshType {
     Walls,
@@ -86,7 +266,26 @@ impl StaticMesh {
     }
 }
 
-impl Component for StaticMesh {}
+impl Component for StaticMesh {
+    fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    fn disable(&mut self) {
+        self.enabled = false;
+    }
+}
+
+impl AutoUpdatable for StaticMesh {
+    fn auto_update(&mut self, _entity: crate::ecs::Entity, _delta_time: f32) {
+        // StaticMesh components are pure data storage
+        // They don't need per-frame updates
+    }
+}
 
 impl super::rendering::Renderable for StaticMesh {
     fn get_render_data(&self) -> super::rendering::RenderData {

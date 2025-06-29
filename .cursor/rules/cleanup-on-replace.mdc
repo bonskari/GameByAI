@@ -1,0 +1,89 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Cleanup on Replace Rule
+
+## Core Principle
+**Always clean up old code when creating new functionality that replaces it**
+
+When implementing new systems, patterns, or functionality that replaces existing code:
+1. **Identify what is being replaced** - Don't just add new code alongside old code
+2. **Remove the old implementation** - Delete unused structs, functions, and methods
+3. **Clean up references** - Remove imports, commented-out calls, and dead references
+4. **Update documentation** - Remove outdated comments and documentation
+
+## Common Scenarios
+
+### System Replacement
+```rust
+// DON'T: Leave empty systems when functionality moves elsewhere
+struct OldPlayerSystem; // DELETE THIS when logic moves to EcsGameState
+
+// DO: Remove the old system entirely when replacing it
+// ✅ Functionality moved to EcsGameState::update_with_input()
+// ✅ Old PlayerMovementSystem deleted
+```
+
+### Architecture Changes
+- When moving from ECS systems to direct method calls → Remove empty systems
+- When changing collision detection approach → Remove old collision functions
+- When refactoring input handling → Remove old input structures
+
+### Code Migration
+- When moving logic between files → Remove old file or old functions
+- When changing data structures → Remove old struct definitions
+- When updating algorithms → Remove old algorithm implementations
+
+## Implementation Checklist
+
+When replacing functionality:
+
+1. **Identify Dependencies**
+   - [ ] What code depends on the old implementation?
+   - [ ] What imports or references need updating?
+   - [ ] Are there any commented-out calls to old code?
+
+2. **Remove Old Code**
+   - [ ] Delete unused structs/enums/functions
+   - [ ] Remove empty implementations
+   - [ ] Clean up old imports
+
+3. **Update References**
+   - [ ] Remove commented-out system registrations
+   - [ ] Update or remove outdated comments
+   - [ ] Fix any compilation errors from removed dependencies
+
+4. **Verify Cleanup**
+   - [ ] Code compiles without warnings about unused code
+   - [ ] No dead imports or references remain
+   - [ ] Documentation reflects the current architecture
+
+## Examples from GameByAI
+
+### ❌ What NOT to do (what we had):
+```rust
+// Empty system doing nothing but still existing
+impl System for PlayerMovementSystem {
+    fn run(&mut self, world: &mut World) {
+        // This system is currently disabled...
+    }
+}
+
+// Commented-out references still hanging around
+// systems.add_system(PlayerMovementSystem::new()); // unused!
+```
+
+### ✅ What TO do (what we fixed):
+```rust
+// Old systems completely removed
+// Functionality properly implemented in EcsGameState::update_with_input()
+// No dead code or commented references left behind
+```
+
+## Benefits
+- **Cleaner codebase** - No confusion about what code is actually used
+- **Easier maintenance** - Less code to maintain and understand
+- **Better performance** - No unused code taking up memory or compilation time
+- **Clearer architecture** - Obvious what patterns and approaches are current

@@ -3,3 +3,35 @@ description:
 globs:
 alwaysApply: false
 ---
+# ECS Architecture Rules
+
+## Component Design
+- Components should be data-only structures (no heavy logic)
+- Each component should have a single responsibility
+- Components must implement the `Component` trait
+- Use `enabled: bool` field for toggling component behavior
+- Components should be self-contained and not depend on other component types directly
+
+## Entity-Component Relationships
+- Entities are just IDs that group components together
+- Never store entity references directly in components (use ECS queries instead)
+- Components should not modify other components directly
+- Use the World to query and modify components
+
+## System Design
+- Systems operate on components through the World
+- Systems should be stateless where possible
+- Use component queries to find entities with specific component combinations
+- Avoid tight coupling between systems
+
+## Rust-Specific ECS Patterns
+- Be mindful of Rust's borrowing rules when accessing components
+- Use `Vec<Entity>` to collect entities before mutation to avoid borrow conflicts
+- Prefer immutable queries when possible
+- Consider two-phase updates (read phase, then write phase) for complex interactions
+
+## Auto-Registration with Inventory
+- Components that implement `AutoUpdatable` can be auto-discovered
+- Use `inventory::submit!` to register components at compile time
+- Keep auto-update logic self-contained (no cross-component dependencies)
+- Cross-component logic should remain in explicit systems in EcsGameState

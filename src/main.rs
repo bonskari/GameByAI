@@ -247,6 +247,47 @@ async fn run_texture_generation(
     }
 }
 
+/// Handle lighting commands
+async fn handle_lighting_command(action: cli::LightingAction) {
+    println!("🔆 Lighting Command System");
+    
+    match action {
+        cli::LightingAction::SingleOmni => {
+            println!("Creating single omni light with sphere mesh...");
+            // Initialize game state to access ECS
+            let mut game_state = initialize_game().await;
+            
+            // Create the single omni light
+            game_state.ecs_state.create_single_omni_light();
+            
+            println!("✅ Single omni light created! Starting game...");
+            
+            // Enable mouse capture for FPS-style mouse look
+            set_cursor_grab(true);
+            show_mouse(false);
+            
+            // Run the game with the new lighting setup
+            run_game_loop(game_state, None).await;
+        },
+        cli::LightingAction::RemoveAll => {
+            println!("Removing all lights from scene...");
+            let mut game_state = initialize_game().await;
+            game_state.ecs_state.remove_all_lights();
+            println!("✅ All lights removed! Starting game...");
+            
+            // Enable mouse capture and run game
+            set_cursor_grab(true);
+            show_mouse(false);
+            run_game_loop(game_state, None).await;
+        },
+        cli::LightingAction::Test => {
+            println!("Starting lighting performance tests...");
+            // Use the existing visual test system
+            run_visual_tests(30, true).await;
+        },
+    }
+}
+
 /// Main entry point
 fn main() {
     let cli = Cli::parse();
@@ -267,6 +308,11 @@ fn main() {
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
                 run_texture_generation(&output, token, &model, test_only, texture_type, api_only, local_only).await;
+            });
+        },
+        Some(Commands::Lighting { action }) => {
+            macroquad::Window::from_config(window_conf(), async move {
+                handle_lighting_command(action).await;
             });
         },
         None => {

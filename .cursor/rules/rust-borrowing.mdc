@@ -3,3 +3,62 @@ description:
 globs:
 alwaysApply: false
 ---
+# Rust Borrowing Rules for ECS
+
+## Fundamental Borrowing Principles
+- You can have either ONE mutable reference OR multiple immutable references
+- Never try to borrow the same data mutably and immutably at the same time
+- Rust's borrow checker prevents data races at compile time
+
+## Common ECS Borrowing Patterns
+
+### Safe Pattern: Collect Then Process
+```rust
+// GOOD: Collect entity IDs first, then process
+let entities: Vec<Entity> = world.query_1::<SomeComponent>()
+    .into_iter().map(|(entity, _)| entity).collect();
+    
+for entity in entities {
+    if let Some(component) = world.get_mut::<SomeComponent>(entity) {
+        // Safe mutation
+    }
+}
+```
+
+### Dangerous Pattern: Simultaneous Borrows
+```rust
+// BAD: This will cause borrowing conflicts
+for (entity, component) in world.query_1::<SomeComponent>() {
+    let other = world.get_mut::<OtherComponent>(entity); // Error!
+}
+```
+
+## ECS-Specific Solutions
+
+### Two-Phase Updates
+```rust
+// Phase 1: Read and decide
+let updates = Vec::new();
+for (entity, component) in world.query_1::<SomeComponent>() {
+    if should_update(component) {
+        updates.push((entity, new_value));
+    }
+}
+
+// Phase 2: Apply changes
+for (entity, value) in updates {
+    if let Some(component) = world.get_mut::<SomeComponent>(entity) {
+        component.value = value;
+    }
+}
+```
+
+### Component Self-Updates
+- Components can implement `AutoUpdatable` for self-contained updates
+- No cross-component access during auto-update to avoid borrowing conflicts
+- Use events or separate systems for cross-component communication
+
+## What to Avoid
+- Trying to get mutable and immutable borrows of World simultaneously
+- Nested loops that borrow World multiple times
+- Holding references across function calls that might borrow World again

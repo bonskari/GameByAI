@@ -123,6 +123,9 @@ impl EcsGameState {
         
         println!("ECS: Populated world with {} walls, {} floors, {} ceilings ({} total entities)", 
                  wall_count, floor_count, ceiling_count, wall_count + floor_count + ceiling_count + 1); // +1 for player
+        
+        // Create default single omni light in the center
+        self.create_blue_omni_light();
     }
     
     /// Check collision with ECS entities that have colliders at the given position
@@ -970,6 +973,121 @@ impl EcsGameState {
 
         for entity in light_entities {
             self.world.despawn(entity);
+        }
+    }
+    
+    /// Create a single omni light with visible sphere mesh in the center of the scene
+    pub fn create_single_omni_light(&mut self) {
+        self.create_single_omni_light_with_color(Color::new(1.0, 1.0, 1.0, 1.0));
+    }
+    
+    /// Create a single omni light with custom color
+    pub fn create_single_omni_light_with_color(&mut self, light_color: Color) {
+        self.create_single_omni_light_with_logging_and_color(true, light_color);
+    }
+    
+    /// Create a red omni light
+    pub fn create_red_omni_light(&mut self) {
+        self.create_single_omni_light_with_color(Color::new(1.0, 0.2, 0.2, 1.0));
+    }
+    
+    /// Create a blue omni light  
+    pub fn create_blue_omni_light(&mut self) {
+        self.create_single_omni_light_with_color(Color::new(0.2, 0.4, 1.0, 1.0));
+    }
+    
+    /// Create a green omni light
+    pub fn create_green_omni_light(&mut self) {
+        self.create_single_omni_light_with_color(Color::new(0.2, 1.0, 0.3, 1.0));
+    }
+    
+    /// Create a warm orange omni light
+    pub fn create_orange_omni_light(&mut self) {
+        self.create_single_omni_light_with_color(Color::new(1.0, 0.6, 0.2, 1.0));
+    }
+    
+    /// Create a purple omni light
+    pub fn create_purple_omni_light(&mut self) {
+        self.create_single_omni_light_with_color(Color::new(0.8, 0.2, 1.0, 1.0));
+    }
+    
+    /// Create a cyan omni light
+    pub fn create_cyan_omni_light(&mut self) {
+        self.create_single_omni_light_with_color(Color::new(0.2, 0.9, 0.9, 1.0));
+    }
+    
+    /// Create a single omni light with visible sphere mesh in the center of the scene
+    fn create_single_omni_light_with_logging(&mut self, verbose: bool) {
+        self.create_single_omni_light_with_logging_and_color(verbose, Color::new(1.0, 1.0, 1.0, 1.0));
+    }
+    
+    /// Create a single omni light with visible sphere mesh in the center of the scene
+    fn create_single_omni_light_with_logging_and_color(&mut self, verbose: bool, light_color: Color) {
+        // Remove all existing lights first
+        self.remove_all_lights();
+        
+        // Calculate center position of the map
+        let center_x = self.map.width as f32 / 2.0;
+        let center_z = self.map.height as f32 / 2.0;
+        let center_position = Vec3::new(center_x, 1.5, center_z); // Slightly elevated
+        
+        // Create an omni light with the specified color
+        let omni_light = LightSource::new(
+            light_color,
+            2.0,    // High intensity
+            8.0,    // Large radius to cover most of the scene
+            LightSourceType::Ambient // Static, no animation
+        );
+        
+        // Make the sphere mesh color match the light color but slightly brighter for visibility
+        let sphere_color = Color::new(
+            (light_color.r + 0.3).min(1.0),
+            (light_color.g + 0.3).min(1.0),
+            (light_color.b + 0.3).min(1.0),
+            1.0
+        );
+        
+        // Create the light entity with both lighting and visual components
+        let light_entity = self.world.spawn()
+            .with(Transform::new(center_position))
+            .with(omni_light)
+            .with(Renderer::sphere(0.15)
+                .with_color(sphere_color)
+                .with_enabled(true))
+            .build();
+        
+        // Debug: Check if entity was created successfully
+        println!("🔆 DEBUG: Light entity created with ID: {:?}", light_entity);
+        println!("🔆 DEBUG: Light position: {:?}", center_position);
+        println!("🔆 DEBUG: Light color: {:?}", light_color);
+        println!("🔆 DEBUG: Sphere color: {:?}", sphere_color);
+        
+        // Debug: Check if components were added
+        if let Some(transform) = self.world.get::<Transform>(light_entity) {
+            println!("🔆 DEBUG: Transform component found at position: {:?}", transform.position);
+        } else {
+            println!("❌ ERROR: Transform component not found!");
+        }
+        
+        if self.world.has::<LightSource>(light_entity) {
+            println!("🔆 DEBUG: LightSource component found");
+        } else {
+            println!("❌ ERROR: LightSource component not found!");
+        }
+        
+        if self.world.has::<Renderer>(light_entity) {
+            println!("🔆 DEBUG: Renderer component found");
+            if let Some(renderer) = self.world.get::<Renderer>(light_entity) {
+                println!("🔆 DEBUG: Renderer mode: {:?}", renderer.get_mode_name());
+                println!("🔆 DEBUG: Renderer enabled: {}", renderer.enabled);
+                println!("🔆 DEBUG: Renderer should_render: {}", renderer.should_render());
+            }
+        } else {
+            println!("❌ ERROR: Renderer component not found!");
+        }
+        
+        if verbose {
+            println!("🔆 Created single omni light at center position: {:?} with color: {:?}", center_position, light_color);
         }
     }
     
