@@ -1,12 +1,12 @@
-<!doctype html><html lang="fi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"><title>Hylkeen meriseikkailu</title><style>body{margin:0;background:#063a60;color:white;font:18px system-ui;overflow:hidden}canvas{display:block;width:100vw;height:100vh;touch-action:none}#info{position:absolute;top:10px;left:12px;background:#003b5baa;padding:8px;border-radius:10px}#help{position:absolute;bottom:10px;left:12px;font-size:14px;background:#003b5baa;padding:8px;border-radius:8px} #versionBadge{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:#003b5bcc;padding:8px 14px;border-radius:10px;font-weight:700;white-space:nowrap;pointer-events:none}</style><canvas id="c"></canvas><div id="versionBadge">Versio 1.0.3</div><div id="info">🌿 Merilevä: <span id="score">0</span>　❤️ <span id="life">3</span></div><div id="help">🎮 Vasen tatti / ristiohjain · Kosketus: vedä · Uusi peli: A</div><script>
-const VERSION="1.0.3";
+<!doctype html><html lang="fi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"><title>Hylkeen meriseikkailu</title><meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0"><style>body{margin:0;background:#063a60;color:white;font:18px system-ui;overflow:hidden}canvas{display:block;width:100vw;height:100vh;touch-action:none}#info{position:absolute;top:10px;left:12px;background:#003b5baa;padding:8px;border-radius:10px}#help{position:absolute;bottom:10px;left:12px;font-size:14px;background:#003b5baa;padding:8px;border-radius:8px} #versionBadge{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:#003b5bcc;padding:8px 14px;border-radius:10px;font-weight:700;white-space:nowrap;pointer-events:none}</style><canvas id="c"></canvas><div id="versionBadge">Versio 1.0.4</div><div id="info">🌿 Merilevä: <span id="score">0</span>　❤️ <span id="life">3</span></div><div id="help">🎮 Vasen tatti / ristiohjain · Kosketus: vedä · Uusi peli: A</div><script>
+const VERSION="1.0.4";
 let checkingUpdate=false;
 async function checkUpdate(){
  if(checkingUpdate)return;
  checkingUpdate=true;
  try{
-  const url="./version.json?nocache="+Date.now();
-  const r=await fetch(url,{cache:"no-store",headers:{"Cache-Control":"no-cache"}});
+  const url=new URL("./version.json",location.href);\n  url.searchParams.set("nocache",Date.now().toString());
+  const r=await fetch(url.href,{cache:"no-store"});
   if(!r.ok)return;
   const data=await r.json();
   if(data.version&&data.version!==VERSION){
