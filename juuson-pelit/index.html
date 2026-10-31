@@ -5,7 +5,8 @@ async function checkUpdate(){
  if(checkingUpdate)return;
  checkingUpdate=true;
  try{
-  const url=new URL("./version.json",location.href);\n  url.searchParams.set("nocache",Date.now().toString());
+  const url=new URL("./version.json",location.href);
+  url.searchParams.set("nocache",Date.now().toString());
   const r=await fetch(url.href,{cache:"no-store"});
   if(!r.ok)return;
   const data=await r.json();
