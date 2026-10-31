@@ -1,20 +1,26 @@
 # Juuson pelit
 
-Tämä haara on Juuson selainpelien kehitystä varten. Alkuperäinen GameByAI-projekti säilyy main-haarassa.
+Tämä on Juuson pelien oma kehityshaara `juuson-pelit` repositoriossa `bonskari/GameByAI`. Älä muuta haaran nimeä tai `main`-haaraa.
 
-## Hylkeen meriseikkailu
+## Pelaaminen
 
-Pelin tiedostot ovat kansiossa `juusanpelit/` (vanha tekninen kansionimi). `index.html` sisältää pelin ja `version.json` kertoo julkaistun version. Hylje kerää merilevää, väistää haita ja sitä ohjataan peliohjaimella, näppäimistöllä tai kosketuksella.
+Hylkeen meriseikkailu: hylje kerää merilevää ja väistelee haita. Android-tabletilla peliä ohjataan peliohjaimen vasemmalla tatilla tai ristiohjaimella; myös kosketus ja näppäimistö toimivat.
 
-## Kehitysohjeet tekoälylle
+**Pysyvä peliosoite (GitHub Pages):** https://bonskari.github.io/GameByAI/juuson-pelit/
 
-- Kehitä aina tätä samaa peliä; älä luo uutta erillistä peliä.
-- Säilytä peliohjaintuki (Gamepad API) ja Android-selaintuki.
-- Kun pelin koodi muuttuu, kasvata `version.json`-tiedoston versionumeroa ja vastaavaa `VERSION`-arvoa pelin HTML-tiedostossa. Päivitystarkistus vertailee näitä.
-- Jos versiota ei ole muutettu, selain ei saa latautua uudelleen. Uusi versio voidaan ottaa käyttöön heti.
-- Älä poista main-haaran vanhaa projektia tai muuta sen sisältöä.
-- Julkaise vain pelin tiedostot. Julkaisutyönkulku sijaitsee `.github/workflows/juusanpelit-pages.yml` ja on päivitettävä seuraamaan tätä haaraa.
+Peli julkaistaan GitHub Pagesin asetuksella **Deploy from a branch**, branch **juuson-pelit**, folder **/(root)**. Kansiossa `juuson-pelit/` ovat `index.html` ja `version.json`. GitHub Pages -julkaisun valmistumista ja linkin toimivuutta on seurattava erikseen.
 
-## Julkaisu
+## AI-kehitysohjeet
 
-GitHub Pagesin käyttöönotto on tarkistettava repositorion asetuksista. Pelin toimivaa julkista osoitetta ei ole vielä vahvistettu.
+1. Muokkaa aina olemassa olevaa `juuson-pelit/index.html`-tiedostoa; älä tee uutta peliä tai muuta GitHub-haaran nimeä.
+2. Säilytä peliohjaimen Gamepad API -tuki, Android-selaintuki, hylje, hait ja kerättävä merilevä.
+3. Muuta **jokaisen peliin vaikuttavan päivityksen** yhteydessä sekä HTML:n `VERSION` että `juuson-pelit/version.json`-tiedoston `version` samaan uuteen arvoon. Älä muuta versiota, ellei pelissä ole oikeasti muutoksia.
+4. Peli tarkistaa `version.json`-tiedoston minuutin välein välimuistin ohi. Jos versio ei muutu, peli ei lataudu uudelleen. Jos muuttuu, selain avaa uuden version automaattisesti; pelitilannetta ei tarvitse säilyttää.
+5. Älä lisää GitHub Actions -Pages-työnkulkua, kun julkaisu on määritetty suoraan haarasta.
+6. Säilytä `main`-haaran GameByAI-projekti muuttumattomana. Työskentele vain `juuson-pelit`-haarassa.
+
+## Tiedostot
+
+- `juuson-pelit/index.html`: koko peli.
+- `juuson-pelit/version.json`: päivitystarkistuksen versionumero.
+- `README.md`: projektin ohjeet ihmisille ja tekoälylle.
