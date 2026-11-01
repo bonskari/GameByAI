@@ -20,3 +20,5 @@ Huom: GitHub Pagesin julkaisuviive ja selaimen verkkoyhteys voivat viivästyttä
 - **Täsmällinen, klikattava pelilinkki.** Tarkista GitHubin ainoa oikea haara `juuson-pelit`, tiedostopolku ja julkinen URL. Kirjoita osoite oikein Markdown-linkkinä; älä korvaa vinoviivoja puheessa sanoilla. Älä väitä linkkiä toimivaksi ilman tarkistusta.
 - **Kuusivuotiaalle sopiva teksti.** Kaikki pelin näkyvät ohjeet, valikot, ilmoitukset ja tarina käyttävät hyvin lyhyitä, selkeitä suomenkielisiä lauseita. Ei pitkiä kappaleita eikä vaikeita termejä.
 - **Julkaisun laadunvarmistus.** Tee vain yksi julkaisu kerrallaan. Tarkista, ettei edellinen deployment ole kesken, varmista onnistuminen ja vertaa julkisen HTML:n versiota GitHubin tiedostoon. Älä sekoita haaroja tai julkaisutapoja.
+
+- **Grafiikka:** Suosi aiempaa realistisempaa, yksityiskohtaista ja yhtenäistä pelimaailmaa. Älä rakenna hahmoja, kiviä tai ympäristöä pelkistä yksinkertaisista geometrisista muodoista. Käytä tarvittaessa laadukkaita piirros- tai kuvapohjaisia spritejä, tekstuureja, varjostusta ja animaatiota. Grafiikan tulee silti olla selkeää ja kuusivuotiaalle sopivaa sekä toimia tabletilla sujuvasti.
