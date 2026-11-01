@@ -24,3 +24,18 @@ jobs:
           path: .
       - id: deployment
         uses: actions/deploy-pages@v4
+        continue-on-error: true
+      # GitHub rejects a new deployment while an old one is stuck "in progress"
+      # (HTTP 400). Cancel the recent ones (finished ones just refuse) and retry.
+      - name: Cancel stuck deployments
+        if: steps.deployment.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for sha in $(gh api "repos/$GITHUB_REPOSITORY/deployments?environment=github-pages&per_page=5" --jq '.[].sha'); do
+            gh api -X POST "repos/$GITHUB_REPOSITORY/pages/deployments/$sha/cancel" || true
+          done
+          sleep 20
+      - name: Retry deployment
+        if: steps.deployment.outcome == 'failure'
+        uses: actions/deploy-pages@v4
