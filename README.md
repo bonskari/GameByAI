@@ -8,7 +8,7 @@ Hylkeen meriseikkailu: hylje kerää merilevää ja väistelee haita. Android-ta
 
 **Pysyvä peliosoite (GitHub Pages):** https://bonskari.github.io/GameByAI/juuson-pelit/
 
-Peli julkaistaan GitHub Pagesin asetuksella **Deploy from a branch**, branch **juuson-pelit**, folder **/(root)**. Kansiossa `juuson-pelit/` ovat `index.html` ja `version.json`. GitHub Pages -julkaisun valmistumista ja linkin toimivuutta on seurattava erikseen.
+Peli julkaistaan GitHub Pagesin asetuksella **GitHub Actions** (`.github/workflows/pages.yml`): jokainen push haaraan `juuson-pelit` julkaisee koko repon juuren automaattisesti, ja päällekkäiset julkaisut jonotetaan. Kansiossa `juuson-pelit/` ovat `index.html` ja `version.json`. GitHub Pages -julkaisun valmistumista ja linkin toimivuutta on seurattava erikseen.
 
 ## AI-kehitysohjeet
 
@@ -16,13 +16,12 @@ Peli julkaistaan GitHub Pagesin asetuksella **Deploy from a branch**, branch **j
 2. Säilytä peliohjaimen Gamepad API -tuki, Android-selaintuki, hylje, hait ja kerättävä merilevä.
 3. Muuta **jokaisen peliin vaikuttavan päivityksen** yhteydessä sekä HTML:n `VERSION` että `juuson-pelit/version.json`-tiedoston `version` samaan uuteen arvoon. Älä muuta versiota, ellei pelissä ole oikeasti muutoksia.
 4. Peli tarkistaa `version.json`-tiedoston minuutin välein välimuistin ohi. Jos versio ei muutu, peli ei lataudu uudelleen. Jos muuttuu, selain avaa uuden version automaattisesti; pelitilannetta ei tarvitse säilyttää.
-5. Älä lisää GitHub Actions -Pages-työnkulkua, kun julkaisu on määritetty suoraan haarasta.
-6. Julkaise **yksi commit/push per päivitys** ajamalla `./julkaise.sh`. Se odottaa edellisen Pages-buildin valmistumista ennen pushia ja varmistaa lopuksi onnistumisen. Älä pushaa suoraan useita committeja peräkkäin: päällekkäinen deploy kaataa Pagesin ("in progress deployment", HTTP 400).
-7. Säilytä `main`-haaran GameByAI-projekti muuttumattomana. Työskentele vain `juuson-pelit`-haarassa.
+5. **Pakollinen jokaiselle pelille ja sivulle:** automaattinen julkaisu. Älä poista tai muuta `.github/workflows/pages.yml`-tiedostoa. Jokaisen uuden pelin on oltava juuren alikansiossa (`<peli>/index.html` + `<peli>/version.json`), jolloin se julkaistuu pushilla itsestään osoitteeseen `https://bonskari.github.io/GameByAI/<peli>/`. Uutta peliä luotaessa tämä ja automaattinen version tarkistus (kohta 4) ovat aina mukana.
+6. Säilytä `main`-haaran GameByAI-projekti muuttumattomana. Työskentele vain `juuson-pelit`-haarassa.
 
 ## Tiedostot
 
 - `juuson-pelit/index.html`: koko peli.
 - `juuson-pelit/version.json`: päivitystarkistuksen versionumero.
-- `julkaise.sh`: turvallinen julkaisu (odottaa Pages-buildin).
+- `.github/workflows/pages.yml`: automaattinen Pages-julkaisu.
 - `README.md`: projektin ohjeet ihmisille ja tekoälylle.
