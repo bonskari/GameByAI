@@ -17,10 +17,12 @@ Peli julkaistaan GitHub Pagesin asetuksella **Deploy from a branch**, branch **j
 3. Muuta **jokaisen peliin vaikuttavan päivityksen** yhteydessä sekä HTML:n `VERSION` että `juuson-pelit/version.json`-tiedoston `version` samaan uuteen arvoon. Älä muuta versiota, ellei pelissä ole oikeasti muutoksia.
 4. Peli tarkistaa `version.json`-tiedoston minuutin välein välimuistin ohi. Jos versio ei muutu, peli ei lataudu uudelleen. Jos muuttuu, selain avaa uuden version automaattisesti; pelitilannetta ei tarvitse säilyttää.
 5. Älä lisää GitHub Actions -Pages-työnkulkua, kun julkaisu on määritetty suoraan haarasta.
-6. Säilytä `main`-haaran GameByAI-projekti muuttumattomana. Työskentele vain `juuson-pelit`-haarassa.
+6. Julkaise **yksi commit/push per päivitys** ajamalla `./julkaise.sh`. Se odottaa edellisen Pages-buildin valmistumista ennen pushia ja varmistaa lopuksi onnistumisen. Älä pushaa suoraan useita committeja peräkkäin: päällekkäinen deploy kaataa Pagesin ("in progress deployment", HTTP 400).
+7. Säilytä `main`-haaran GameByAI-projekti muuttumattomana. Työskentele vain `juuson-pelit`-haarassa.
 
 ## Tiedostot
 
 - `juuson-pelit/index.html`: koko peli.
 - `juuson-pelit/version.json`: päivitystarkistuksen versionumero.
+- `julkaise.sh`: turvallinen julkaisu (odottaa Pages-buildin).
 - `README.md`: projektin ohjeet ihmisille ja tekoälylle.
