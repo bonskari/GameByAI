@@ -11,3 +11,12 @@ Tämä ohje koskee jokaista uutta peliä.
 7. Jos käyttäjä on pelaamassa, vältä tarpeettomia automaattisia uudelleenlatauksia: päivitä vain version muuttuessa; huomioi tallennustila tarvittaessa.
 
 Huom: GitHub Pagesin julkaisuviive ja selaimen verkkoyhteys voivat viivästyttää päivitystä; täysin välitöntä päivitystä ei voi luvata.
+
+## Kaikkien pelien pakolliset perusominaisuudet
+
+- **Peliohjain yksin riittää.** Koko peli, valikot, aloitus, tauko, jatkaminen, uudelleenaloitus ja mahdolliset vahvistukset toimivat gamepadilla. Älä lisää ruudulle kosketus- tai ohjauspainikkeita. Testaa gamepad-käyttö kokonaisuudessaan.
+- **Automaattinen päivitys ensimmäisestä versiosta lähtien.** Käytä version tarkistusta ja välimuistin ohitusta. Älä edellytä manuaalista sivun päivittämistä tavallisissa päivityksissä. Päivitys tulee samasta pysyvästä osoitteesta.
+- **Selkeä versionumerointi.** Aloita 1.0.0:sta, nosta versionumeroa jokaisella julkaistavalla muutoksella, näytä versio pelissä ja tarkista julkaistun version numero.
+- **Täsmällinen, klikattava pelilinkki.** Tarkista GitHubin ainoa oikea haara `juuson-pelit`, tiedostopolku ja julkinen URL. Kirjoita osoite oikein Markdown-linkkinä; älä korvaa vinoviivoja puheessa sanoilla. Älä väitä linkkiä toimivaksi ilman tarkistusta.
+- **Kuusivuotiaalle sopiva teksti.** Kaikki pelin näkyvät ohjeet, valikot, ilmoitukset ja tarina käyttävät hyvin lyhyitä, selkeitä suomenkielisiä lauseita. Ei pitkiä kappaleita eikä vaikeita termejä.
+- **Julkaisun laadunvarmistus.** Tee vain yksi julkaisu kerrallaan. Tarkista, ettei edellinen deployment ole kesken, varmista onnistuminen ja vertaa julkisen HTML:n versiota GitHubin tiedostoon. Älä sekoita haaroja tai julkaisutapoja.
