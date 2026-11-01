@@ -16,7 +16,7 @@ Peli julkaistaan GitHub Pagesin asetuksella **GitHub Actions** (`.github/workflo
 2. Säilytä peliohjaimen Gamepad API -tuki, Android-selaintuki, hylje, hait ja kerättävä merilevä.
 3. Muuta **jokaisen peliin vaikuttavan päivityksen** yhteydessä sekä HTML:n `VERSION` että `juuson-pelit/version.json`-tiedoston `version` samaan uuteen arvoon. Älä muuta versiota, ellei pelissä ole oikeasti muutoksia.
 4. Peli tarkistaa `version.json`-tiedoston minuutin välein välimuistin ohi. Jos versio ei muutu, peli ei lataudu uudelleen. Jos muuttuu, selain avaa uuden version automaattisesti; pelitilannetta ei tarvitse säilyttää.
-5. **Pakollinen jokaiselle pelille ja sivulle:** automaattinen julkaisu. Älä poista tai muuta `.github/workflows/pages.yml`-tiedostoa. Jokaisen uuden pelin on oltava juuren alikansiossa (`<peli>/index.html` + `<peli>/version.json`), jolloin se julkaistuu pushilla itsestään osoitteeseen `https://bonskari.github.io/GameByAI/<peli>/`. Uutta peliä luotaessa tämä ja automaattinen version tarkistus (kohta 4) ovat aina mukana.
+5. **Pakollinen jokaiselle pelille ja sivulle:** automaattinen julkaisu. Älä poista tai muuta `.github/workflows/pages.yml`-tiedostoa. Jokainen `juuson-pelit/`-kansioon lisätty tai muutettu tiedosto julkaistuu pushilla itsestään osoitteeseen `https://bonskari.github.io/GameByAI/juuson-pelit/<tiedosto>`. Uutta peliä luotaessa tämä ja automaattinen version tarkistus (kohta 4) ovat aina mukana.
 6. Säilytä `main`-haaran GameByAI-projekti muuttumattomana. Työskentele vain `juuson-pelit`-haarassa.
 
 ## Tiedostot
